@@ -1,10 +1,10 @@
 """
-Unit tests for compare service
+Unit tests for compare service helper methods
+Tests utility methods that don't require database
 """
 import pytest
 from app.services.compare_service import CompareService
 from app.schemas import ProductComparison
-from datetime import datetime
 
 
 def test_find_cheapest():
@@ -14,20 +14,16 @@ def test_find_cheapest():
         ProductComparison(
             product_id=1,
             product_name="Milk",
-            supermarket_id=1,
-            supermarket_name="Store A",
-            price=2.99,
-            currency="USD",
-            recorded_at=datetime.utcnow()
+            store_id=1,
+            store_name="Store A",
+            price=2.99
         ),
         ProductComparison(
             product_id=1,
             product_name="Milk",
-            supermarket_id=2,
-            supermarket_name="Store B",
-            price=2.49,
-            currency="USD",
-            recorded_at=datetime.utcnow()
+            store_id=2,
+            store_name="Store B",
+            price=2.49
         ),
     ]
     
@@ -42,20 +38,16 @@ def test_find_most_expensive():
         ProductComparison(
             product_id=1,
             product_name="Milk",
-            supermarket_id=1,
-            supermarket_name="Store A",
-            price=2.99,
-            currency="USD",
-            recorded_at=datetime.utcnow()
+            store_id=1,
+            store_name="Store A",
+            price=2.99
         ),
         ProductComparison(
             product_id=1,
             product_name="Milk",
-            supermarket_id=2,
-            supermarket_name="Store B",
-            price=2.49,
-            currency="USD",
-            recorded_at=datetime.utcnow()
+            store_id=2,
+            store_name="Store B",
+            price=2.49
         ),
     ]
     
@@ -70,20 +62,16 @@ def test_calculate_average_price():
         ProductComparison(
             product_id=1,
             product_name="Milk",
-            supermarket_id=1,
-            supermarket_name="Store A",
-            price=2.0,
-            currency="USD",
-            recorded_at=datetime.utcnow()
+            store_id=1,
+            store_name="Store A",
+            price=2.0
         ),
         ProductComparison(
             product_id=1,
             product_name="Milk",
-            supermarket_id=2,
-            supermarket_name="Store B",
-            price=4.0,
-            currency="USD",
-            recorded_at=datetime.utcnow()
+            store_id=2,
+            store_name="Store B",
+            price=4.0
         ),
     ]
     

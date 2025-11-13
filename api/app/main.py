@@ -24,7 +24,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Create database tables (in production, use Alembic migrations)
-Base.metadata.create_all(bind=engine)
+# Skip in test environment to avoid connection errors
+if settings.app_env != "test":
+    Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
 # OpenAPI is automatically enabled by FastAPI (available at /docs, /redoc, /openapi.json)

@@ -8,12 +8,20 @@ from app.config import settings
 
 # Create engine with connection pooling (pool_size=5)
 # SQL_CONNECTION_STRING is read from environment variable
+# SQLite doesn't support pool_size and max_overflow, so conditionally apply them
+engine_kwargs = {
+    "pool_pre_ping": True,  # Verify connections before using
+    "echo": settings.debug
+}
+
+# Only use connection pooling for non-SQLite databases
+if not settings.sql_connection_string.startswith("sqlite"):
+    engine_kwargs["pool_size"] = 5
+    engine_kwargs["max_overflow"] = 10
+
 engine = create_engine(
     settings.sql_connection_string,
-    pool_size=5,
-    max_overflow=10,
-    pool_pre_ping=True,  # Verify connections before using
-    echo=settings.debug
+    **engine_kwargs
 )
 
 # Create session factory

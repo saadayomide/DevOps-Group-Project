@@ -1,0 +1,444 @@
+{
+	"info": {
+		"_postman_id": "fastapi-product-comparison-api",
+		"name": "FastAPI Product Comparison API",
+		"description": "Integration tests for Product Comparison API. Can be used in CI/CD pipelines and smoke tests.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "fastapi-product-comparison"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "GET /health",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has status field\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.eql('ok');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Basic health check endpoint - used by smoke tests"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "GET /products",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is an array\", function () {",
+									"    pm.expect(pm.response.json()).to.be.an('array');",
+									"});",
+									"",
+									"pm.test(\"Returns more than 0 rows\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.length).to.be.above(0);",
+									"});",
+									"",
+									"pm.test(\"Each product has id and name\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.length > 0) {",
+									"        pm.expect(jsonData[0]).to.have.property('id');",
+									"        pm.expect(jsonData[0]).to.have.property('name');",
+									"    }",
+									"});",
+									"",
+									"// Store first product for later use",
+									"if (pm.response.json().length > 0) {",
+									"    pm.environment.set('sample_product_id', pm.response.json()[0].id);",
+									"    pm.environment.set('sample_product_name', pm.response.json()[0].name);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								""
+							]
+						},
+						"description": "Get all products - must return >0 rows for integration test"
+					},
+					"response": []
+				},
+				{
+					"name": "GET /products with search",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is an array\", function () {",
+									"    pm.expect(pm.response.json()).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/?q=Milk",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								""
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "Milk"
+								}
+							]
+						},
+						"description": "Search products by name"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Supermarkets",
+			"item": [
+				{
+					"name": "GET /supermarkets",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is an array\", function () {",
+									"    pm.expect(pm.response.json()).to.be.an('array');",
+									"});",
+									"",
+									"// Store supermarket names for compare test",
+									"if (pm.response.json().length >= 2) {",
+									"    var stores = pm.response.json().map(function(s) { return s.name; });",
+									"    pm.environment.set('sample_stores', stores.slice(0, 3).join(','));",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/supermarkets/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"supermarkets",
+								""
+							]
+						},
+						"description": "Get all supermarkets"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Compare",
+			"item": [
+				{
+					"name": "POST /compare - 3 items",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has required fields\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('items');",
+									"    pm.expect(jsonData).to.have.property('storeTotals');",
+									"    pm.expect(jsonData).to.have.property('overallTotal');",
+									"    pm.expect(jsonData).to.have.property('unmatched');",
+									"});",
+									"",
+									"pm.test(\"Items array has correct structure\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array');",
+									"    ",
+									"    if (jsonData.items.length > 0) {",
+									"        var item = jsonData.items[0];",
+									"        pm.expect(item).to.have.property('name');",
+									"        pm.expect(item).to.have.property('store');",
+									"        pm.expect(item).to.have.property('price');",
+									"        pm.expect(item.price).to.be.a('number');",
+									"        pm.expect(item.price).to.be.above(0);",
+									"    }",
+									"});",
+									"",
+									"pm.test(\"StoreTotals array has correct structure\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.storeTotals).to.be.an('array');",
+									"    ",
+									"    if (jsonData.storeTotals.length > 0) {",
+									"        var storeTotal = jsonData.storeTotals[0];",
+									"        pm.expect(storeTotal).to.have.property('store');",
+									"        pm.expect(storeTotal).to.have.property('total');",
+									"        pm.expect(storeTotal.total).to.be.a('number');",
+									"        pm.expect(storeTotal.total).to.be.at.least(0);",
+									"    }",
+									"});",
+									"",
+									"pm.test(\"OverallTotal is a number\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.overallTotal).to.be.a('number');",
+									"    pm.expect(jsonData.overallTotal).to.be.at.least(0);",
+									"});",
+									"",
+									"pm.test(\"Unmatched is an array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.unmatched).to.be.an('array');",
+									"});",
+									"",
+									"pm.test(\"Returns correct mapping for 3 items\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    var requestBody = JSON.parse(pm.request.body.raw);",
+									"    ",
+									"    // Check that we have items in response (may be less if some unmatched)",
+									"    pm.expect(jsonData.items.length).to.be.at.most(requestBody.items.length);",
+									"    ",
+									"    // Verify each item has a store and price",
+									"    jsonData.items.forEach(function(item) {",
+									"        pm.expect(item.store).to.be.a('string');",
+									"        pm.expect(item.price).to.be.a('number');",
+									"    });",
+									"});",
+									"",
+									"pm.test(\"Store totals match requested stores\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    var requestBody = JSON.parse(pm.request.body.raw);",
+									"    ",
+									"    // Get store names from storeTotals",
+									"    var storeNames = jsonData.storeTotals.map(function(st) { return st.store; });",
+									"    ",
+									"    // Each store total should correspond to a requested store",
+									"    storeNames.forEach(function(storeName) {",
+									"        // Store name should be in requested stores (case-insensitive)",
+									"        var found = requestBody.stores.some(function(reqStore) {",
+									"            return reqStore.toLowerCase() === storeName.toLowerCase();",
+									"        });",
+									"        pm.expect(found, 'Store ' + storeName + ' should be in requested stores').to.be.true;",
+									"    });",
+									"});",
+									"",
+									"pm.test(\"Totals are calculated correctly\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    ",
+									"    // Calculate expected totals per store",
+									"    var calculatedTotals = {};",
+									"    jsonData.items.forEach(function(item) {",
+									"        if (!calculatedTotals[item.store]) {",
+									"            calculatedTotals[item.store] = 0;",
+									"        }",
+									"        calculatedTotals[item.store] += item.price;",
+									"    });",
+									"    ",
+									"    // Verify store totals match calculated values (with small tolerance for floating point)",
+									"    jsonData.storeTotals.forEach(function(storeTotal) {",
+									"        var calculated = calculatedTotals[storeTotal.store] || 0;",
+									"        pm.expect(storeTotal.total).to.be.closeTo(calculated, 0.01);",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"items\": [\"Milk\", \"Bread\", \"Eggs\"],\n    \"stores\": [\"Walmart\", \"Target\", \"Kroger\"]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/compare",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"compare"
+							]
+						},
+						"description": "Compare 3 items across stores - returns correct mapping & totals"
+					},
+					"response": []
+				},
+				{
+					"name": "POST /compare - Empty items (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error response format\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData.error).to.eql('BadRequest');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"items\": [],\n    \"stores\": [\"Walmart\", \"Target\"]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/compare",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"compare"
+							]
+						},
+						"description": "Test error handling for empty items"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set base URL if not already set",
+					"if (!pm.environment.get('base_url')) {",
+					"    pm.environment.set('base_url', 'http://localhost:8000');",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global test script",
+					"pm.test('Response time is less than 5000ms', function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	]
+}
+
