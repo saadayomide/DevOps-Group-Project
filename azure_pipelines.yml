@@ -1,0 +1,212 @@
+# ShopSmart CI/CD Pipeline
+# Automated Build → Lint → Test → Deploy → Monitor
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - README.md
+      - docs/*
+      - '*.md'
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  pythonVersion: '3.11'
+  azureSubscription: 'BCSAI2025-DEVOPS-STUDENTS-A' # Update with your actual service connection name
+  appServiceName: 'shopsmart-backend-staging' # Update with your App Service name
+  buildArtifact: 'shopsmart-drop'
+  
+stages:
+  # ===========================
+  # STAGE 1: BUILD
+  # ===========================
+  - stage: Build
+    displayName: '🔨 Build Stage'
+    jobs:
+      - job: BuildJob
+        displayName: 'Build and Package Application'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+            displayName: '🐍 Use Python $(pythonVersion)'
+
+          - script: |
+              echo "Installing dependencies..."
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+            displayName: '📦 Install Dependencies'
+
+          - script: |
+              echo "Preparing build artifact..."
+              mkdir -p $(Build.ArtifactStagingDirectory)/app
+              
+              # Copy application files
+              cp -r *.py $(Build.ArtifactStagingDirectory)/app/ 2>/dev/null || true
+              cp -r app/ $(Build.ArtifactStagingDirectory)/app/ 2>/dev/null || true
+              cp -r models/ $(Build.ArtifactStagingDirectory)/app/ 2>/dev/null || true
+              cp -r routes/ $(Build.ArtifactStagingDirectory)/app/ 2>/dev/null || true
+              cp -r utils/ $(Build.ArtifactStagingDirectory)/app/ 2>/dev/null || true
+              cp requirements.txt $(Build.ArtifactStagingDirectory)/app/
+              
+              echo "Build artifact prepared successfully"
+              ls -la $(Build.ArtifactStagingDirectory)/app/
+            displayName: '📁 Prepare Build Artifact'
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: '$(buildArtifact)'
+              publishLocation: 'Container'
+            displayName: '📤 Publish Build Artifact'
+
+  # ===========================
+  # STAGE 2: LINT
+  # ===========================
+  - stage: Lint
+    displayName: '🔍 Code Quality & Linting'
+    dependsOn: Build
+    jobs:
+      - job: LintJob
+        displayName: 'Run Code Quality Checks'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+            displayName: '🐍 Use Python $(pythonVersion)'
+
+          - script: |
+              echo "Installing linting tools..."
+              pip install flake8 black pylint
+            displayName: '📦 Install Linting Tools'
+
+          - script: |
+              echo "Running Flake8 (critical errors only)..."
+              flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv,__pycache__,.git
+              
+              echo "Running Flake8 (all warnings)..."
+              flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=venv,__pycache__,.git
+            displayName: '🔍 Run Flake8 Linter'
+            continueOnError: true
+
+          - script: |
+              echo "Checking code formatting with Black..."
+              black --check . --exclude='venv|__pycache__|.git' || echo "⚠️ Code formatting issues found. Run 'black .' locally to fix."
+            displayName: '✨ Check Code Formatting (Black)'
+            continueOnError: true
+
+  # ===========================
+  # STAGE 3: TEST
+  # ===========================
+  - stage: Test
+    displayName: '🧪 Testing Stage'
+    dependsOn: Lint
+    jobs:
+      - job: UnitTests
+        displayName: 'Run Unit & Integration Tests'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+            displayName: '🐍 Use Python $(pythonVersion)'
+
+          - script: |
+              echo "Installing dependencies and test tools..."
+              pip install -r requirements.txt
+              pip install pytest pytest-cov pytest-asyncio pytest-azurepipelines httpx
+            displayName: '📦 Install Test Dependencies'
+
+          - script: |
+              echo "Running tests with coverage..."
+              pytest tests/ -v --junitxml=test-results.xml --cov=. --cov-report=xml --cov-report=html --cov-report=term
+            displayName: '🧪 Run Tests with Coverage'
+            continueOnError: false
+
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '**/test-results.xml'
+              failTaskOnFailedTests: true
+              testRunTitle: 'ShopSmart Unit Tests'
+            displayName: '📊 Publish Test Results'
+            condition: always()
+
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage.xml'
+              reportDirectory: '$(System.DefaultWorkingDirectory)/htmlcov'
+            displayName: '📈 Publish Code Coverage'
+            condition: always()
+
+  # ===========================
+  # STAGE 4: PUBLISH ARTIFACT
+  # ===========================
+  - stage: PublishArtifact
+    displayName: '📦 Publish Artifact'
+    dependsOn: Test
+    jobs:
+      - job: PublishJob
+        displayName: 'Prepare Deployment Package'
+        steps:
+          - task: DownloadBuildArtifacts@1
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: '$(buildArtifact)'
+              downloadPath: '$(System.ArtifactsDirectory)'
+            displayName: '📥 Download Build Artifact'
+
+          - script: |
+              echo "Build artifact ready for deployment"
+              ls -la $(System.ArtifactsDirectory)/$(buildArtifact)/
+            displayName: '✅ Verify Artifact'
+
+  # ===========================
+  # STAGE 5: DEPLOY STAGING
+  # ===========================
+  - stage: DeployStaging
+    displayName: '🚀 Deploy to Staging'
+    dependsOn: PublishArtifact
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployWeb
+        displayName: 'Deploy to Azure App Service (Staging)'
+        environment: 'staging'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: DownloadBuildArtifacts@1
+                  inputs:
+                    buildType: 'current'
+                    downloadType: 'single'
+                    artifactName: '$(buildArtifact)'
+                    downloadPath: '$(System.ArtifactsDirectory)'
+                  displayName: '📥 Download Build Artifact'
+
+                - task: AzureWebApp@1
+                  inputs:
+                    azureSubscription: '$(azureSubscription)'
+                    appType: 'webAppLinux'
+                    appName: '$(appServiceName)'
+                    package: '$(System.ArtifactsDirectory)/$(buildArtifact)/app'
+                    runtimeStack: 'PYTHON|3.11'
+                    startUpCommand: 'python -m uvicorn main:app --host 0.0.0.0 --port 8000'
+                  displayName: '🚀 Deploy to Azure App Service'
+
+                - script: |
+                    echo "Deployment completed successfully!"
+                    echo "Application URL: https://$(appServiceName).azurewebsites.net"
+                  displayName: '✅ Deployment Summary'
