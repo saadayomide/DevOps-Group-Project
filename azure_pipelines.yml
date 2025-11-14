@@ -28,11 +28,9 @@ variables:
   buildArtifact: 'shopsmart-drop'
   
 stages:
-  # ===========================
   # STAGE 1: BUILD
-  # ===========================
   - stage: Build
-    displayName: '🔨 Build Stage'
+    displayName: 'Build Stage'
     jobs:
       - job: BuildJob
         displayName: 'Build and Package Application'
@@ -40,13 +38,13 @@ stages:
           - task: UsePythonVersion@0
             inputs:
               versionSpec: '$(pythonVersion)'
-            displayName: '🐍 Use Python $(pythonVersion)'
+            displayName: 'Use Python $(pythonVersion)'
 
           - script: |
               echo "Installing dependencies..."
               python -m pip install --upgrade pip
               pip install -r requirements.txt
-            displayName: '📦 Install Dependencies'
+            displayName: 'Install Dependencies'
 
           - script: |
               echo "Preparing build artifact..."
@@ -62,20 +60,18 @@ stages:
               
               echo "Build artifact prepared successfully"
               ls -la $(Build.ArtifactStagingDirectory)/app/
-            displayName: '📁 Prepare Build Artifact'
+            displayName: 'Prepare Build Artifact'
 
           - task: PublishBuildArtifacts@1
             inputs:
               PathtoPublish: '$(Build.ArtifactStagingDirectory)'
               ArtifactName: '$(buildArtifact)'
               publishLocation: 'Container'
-            displayName: '📤 Publish Build Artifact'
+            displayName: 'Publish Build Artifact'
 
-  # ===========================
   # STAGE 2: LINT
-  # ===========================
   - stage: Lint
-    displayName: '🔍 Code Quality & Linting'
+    displayName: 'Code Quality & Linting'
     dependsOn: Build
     jobs:
       - job: LintJob
@@ -84,12 +80,12 @@ stages:
           - task: UsePythonVersion@0
             inputs:
               versionSpec: '$(pythonVersion)'
-            displayName: '🐍 Use Python $(pythonVersion)'
+            displayName: 'Use Python $(pythonVersion)'
 
           - script: |
               echo "Installing linting tools..."
               pip install flake8 black pylint
-            displayName: '📦 Install Linting Tools'
+            displayName: 'Install Linting Tools'
 
           - script: |
               echo "Running Flake8 (critical errors only)..."
@@ -103,14 +99,12 @@ stages:
           - script: |
               echo "Checking code formatting with Black..."
               black --check . --exclude='venv|__pycache__|.git' || echo "⚠️ Code formatting issues found. Run 'black .' locally to fix."
-            displayName: '✨ Check Code Formatting (Black)'
+            displayName: 'Check Code Formatting (Black)'
             continueOnError: true
 
-  # ===========================
   # STAGE 3: TEST
-  # ===========================
   - stage: Test
-    displayName: '🧪 Testing Stage'
+    displayName: 'Testing Stage'
     dependsOn: Lint
     jobs:
       - job: UnitTests
@@ -119,18 +113,18 @@ stages:
           - task: UsePythonVersion@0
             inputs:
               versionSpec: '$(pythonVersion)'
-            displayName: '🐍 Use Python $(pythonVersion)'
+            displayName: 'Use Python $(pythonVersion)'
 
           - script: |
               echo "Installing dependencies and test tools..."
               pip install -r requirements.txt
               pip install pytest pytest-cov pytest-asyncio pytest-azurepipelines httpx
-            displayName: '📦 Install Test Dependencies'
+            displayName: 'Install Test Dependencies'
 
           - script: |
               echo "Running tests with coverage..."
               pytest tests/ -v --junitxml=test-results.xml --cov=. --cov-report=xml --cov-report=html --cov-report=term
-            displayName: '🧪 Run Tests with Coverage'
+            displayName: 'Run Tests with Coverage'
             continueOnError: false
 
           - task: PublishTestResults@2
@@ -139,7 +133,7 @@ stages:
               testResultsFiles: '**/test-results.xml'
               failTaskOnFailedTests: true
               testRunTitle: 'ShopSmart Unit Tests'
-            displayName: '📊 Publish Test Results'
+            displayName: 'Publish Test Results'
             condition: always()
 
           - task: PublishCodeCoverageResults@1
@@ -147,14 +141,12 @@ stages:
               codeCoverageTool: 'Cobertura'
               summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage.xml'
               reportDirectory: '$(System.DefaultWorkingDirectory)/htmlcov'
-            displayName: '📈 Publish Code Coverage'
+            displayName: 'Publish Code Coverage'
             condition: always()
 
-  # ===========================
   # STAGE 4: PUBLISH ARTIFACT
-  # ===========================
   - stage: PublishArtifact
-    displayName: '📦 Publish Artifact'
+    displayName: 'Publish Artifact'
     dependsOn: Test
     jobs:
       - job: PublishJob
@@ -166,18 +158,16 @@ stages:
               downloadType: 'single'
               artifactName: '$(buildArtifact)'
               downloadPath: '$(System.ArtifactsDirectory)'
-            displayName: '📥 Download Build Artifact'
+            displayName: 'Download Build Artifact'
 
           - script: |
               echo "Build artifact ready for deployment"
               ls -la $(System.ArtifactsDirectory)/$(buildArtifact)/
-            displayName: '✅ Verify Artifact'
+            displayName: 'Verify Artifact'
 
-  # ===========================
   # STAGE 5: DEPLOY STAGING
-  # ===========================
   - stage: DeployStaging
-    displayName: '🚀 Deploy to Staging'
+    displayName: 'Deploy to Staging'
     dependsOn: PublishArtifact
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
@@ -209,4 +199,4 @@ stages:
                 - script: |
                     echo "Deployment completed successfully!"
                     echo "Application URL: https://$(appServiceName).azurewebsites.net"
-                  displayName: '✅ Deployment Summary'
+                  displayName: 'Deployment Summary'
