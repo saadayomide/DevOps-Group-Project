@@ -1,24 +1,15 @@
-# DevOps Group Project
+ShopSmart — TeamC (Sprint 1)
 
-Project description goes here.
+Quick start (local):
+1. Copy .env.example -> .env and set APPINSIGHTS_INSTRUMENTATIONKEY
+2. Install deps: python -m pip install -r requirements.txt
+3. Run: uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
-## Getting Started
+CI/CD:
+- azure_pipelines.yml is configured to Build → Lint → Test → Publish → Deploy (staging)
+- setup-azure.sh will create Resource Group, App Service plan, Web App, Application Insights and Key Vault, and will wire Key Vault secret to the Web App.
 
-Instructions for getting started with the project.
+Monitoring:
+- App Insights needs an instrumentation key (or set via Key Vault). Telemetry is initialized at startup when APPINSIGHTS_INSTRUMENTATIONKEY is present.
 
-## Requirements
-
-- List of requirements here
-
-## Installation
-
-Steps to install and set up the project.
-
-## Usage
-
-How to use the project.
-
-## Contributors
-
-- Add contributor names here
-
+See docs/deployment_guide.md for more details.
