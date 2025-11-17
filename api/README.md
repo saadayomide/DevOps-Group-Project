@@ -10,6 +10,12 @@ A FastAPI application for comparing product prices across different supermarkets
 - Product price comparison across supermarkets
 - RESTful API with automatic documentation
 
+## Documentation
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) – scaffold, configuration, models, routes, compare algorithm, normalization, and error handling.
+- [`docs/TESTING.md`](docs/TESTING.md) – pytest matrix, fixtures, required comparison cases, plus Postman/Newman integration flows.
+- `postman_collection.json` / `postman_environment.json` – ready-to-run smoke tests for Team C.
+
 ## Setup
 
 ### Prerequisites
