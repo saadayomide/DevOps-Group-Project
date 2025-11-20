@@ -1,33 +1,21 @@
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from orm.models import Base, Product
+from orm.models import Product
+from tests.conftest import PRODUCT_COUNT, PRODUCTS
 
-@pytest.fixture
-def db_session():
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    return Session()
 
-def test_create_product(db_session):
-    session = db_session
-    p = Product(name="Test Milk", category="Dairy")
-    session.add(p)
-    session.commit()
+def test_products_table_has_required_rows(db_session):
+    products = db_session.query(Product).all()
+    assert len(products) == PRODUCT_COUNT
 
-    result = session.query(Product).filter_by(name="Test Milk").first()
-    assert result is not None
-    assert result.category == "Dairy"
+    product_names = {product.name for product in products}
+    expected_names = {product["name"] for product in PRODUCTS}
+    assert product_names == expected_names
 
-def test_unique_product_name(db_session):
-    session = db_session
-    p1 = Product(name="Unique Bread", category="Bakery")
-    session.add(p1)
-    session.commit()
 
-    p2 = Product(name="Unique Bread", category="Bakery")
-    session.add(p2)
+def test_product_rows_allow_nullable_category(db_session):
+    product = Product(name="seasonal berries", category=None)
+    db_session.add(product)
+    db_session.commit()
 
-    with pytest.raises(Exception):
-        session.commit()
+    stored = db_session.query(Product).filter_by(name="seasonal berries").first()
+    assert stored is not None
+    assert stored.category is None

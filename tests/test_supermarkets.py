@@ -1,34 +1,24 @@
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from orm.models import Base, Supermarket
+from sqlalchemy.exc import IntegrityError
 
-@pytest.fixture
-def db_session():
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    return Session()
+from orm.models import Supermarket
+from tests.conftest import SUPERMARKET_COUNT, SUPERMARKETS
 
-def test_create_supermarket(db_session):
-    session = db_session
-    s = Supermarket(name="Carrefour", city="Madrid")
-    session.add(s)
-    session.commit()
 
-    result = session.query(Supermarket).filter_by(name="Carrefour").first()
-    assert result is not None
-    assert result.city == "Madrid"
+def test_supermarkets_table_has_expected_rows(db_session):
+    supermarkets = db_session.query(Supermarket).order_by(Supermarket.name).all()
+    assert len(supermarkets) == SUPERMARKET_COUNT
 
-def test_unique_name_city(db_session):
-    session = db_session
+    for row, expected in zip(supermarkets, sorted(SUPERMARKETS, key=lambda s: s["name"])):
+        assert row.name == expected["name"]
+        assert row.city == expected["city"]
 
-    s1 = Supermarket(name="Dia", city="Madrid")
-    session.add(s1)
-    session.commit()
 
-    s2 = Supermarket(name="Dia", city="Madrid")
-    session.add(s2)
+def test_supermarket_name_city_unique_constraint(db_session):
+    duplicate = Supermarket(name="Walmart", city="Bentonville")
+    db_session.add(duplicate)
 
-    with pytest.raises(Exception):
-        session.commit()
+    try:
+        db_session.commit()
+        raise AssertionError("Expected IntegrityError for duplicate name/city")
+    except IntegrityError:
+        db_session.rollback()
