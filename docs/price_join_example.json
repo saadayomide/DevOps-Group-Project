@@ -1,0 +1,10 @@
+{
+  "prices": [
+    {"product": "milk", "store": "Walmart", "city": "Bentonville", "price": 1.94},
+    {"product": "milk", "store": "Target", "city": "Minneapolis", "price": 2.15},
+    {"product": "milk", "store": "Costco", "city": "Issaquah", "price": 1.99},
+    {"product": "eggs", "store": "Walmart", "city": "Bentonville", "price": 2.59},
+    {"product": "eggs", "store": "Target", "city": "Minneapolis", "price": 2.79},
+    {"product": "eggs", "store": "Costco", "city": "Issaquah", "price": 2.69}
+  ]
+}
