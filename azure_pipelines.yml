@@ -26,7 +26,7 @@ variables:
   azureSubscription: 'BCSAI2025-DEVOPS-STUDENTS-A' # Update with your actual service connection name
   appServiceName: 'shopsmart-backend-staging' # Update with your App Service name
   buildArtifact: 'shopsmart-drop'
-  
+
 stages:
   # STAGE 1: BUILD
   - stage: Build
@@ -49,7 +49,7 @@ stages:
           - script: |
               echo "Preparing build artifact..."
               mkdir -p $(Build.ArtifactStagingDirectory)/app
-              
+
               # Copy application files
               cp -r *.py $(Build.ArtifactStagingDirectory)/app/ 2>/dev/null || true
               cp -r app/ $(Build.ArtifactStagingDirectory)/app/ 2>/dev/null || true
@@ -57,7 +57,7 @@ stages:
               cp -r routes/ $(Build.ArtifactStagingDirectory)/app/ 2>/dev/null || true
               cp -r utils/ $(Build.ArtifactStagingDirectory)/app/ 2>/dev/null || true
               cp requirements.txt $(Build.ArtifactStagingDirectory)/app/
-              
+
               echo "Build artifact prepared successfully"
               ls -la $(Build.ArtifactStagingDirectory)/app/
             displayName: 'Prepare Build Artifact'
@@ -90,7 +90,7 @@ stages:
           - script: |
               echo "Running Flake8 (critical errors only)..."
               flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv,__pycache__,.git
-              
+
               echo "Running Flake8 (all warnings)..."
               flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=venv,__pycache__,.git
             displayName: '🔍 Run Flake8 Linter'
@@ -122,9 +122,9 @@ stages:
             displayName: 'Install Test Dependencies'
 
           - script: |
-              echo "Running tests with coverage..."
-              pytest tests/ -v --junitxml=test-results.xml --cov=. --cov-report=xml --cov-report=html --cov-report=term
-            displayName: 'Run Tests with Coverage'
+              echo "Running tests with coverage (fail if < 80%)..."
+              pytest tests/ -v --junitxml=test-results.xml --cov=. --cov-report=xml --cov-report=html --cov-report=term --cov-fail-under=80
+            displayName: 'Run Tests with Coverage (80% threshold)'
             continueOnError: false
 
           - task: PublishTestResults@2

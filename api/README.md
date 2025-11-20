@@ -21,18 +21,111 @@ A FastAPI application for comparing product prices across different supermarkets
 ### Prerequisites
 
 - Python 3.9+
-- PostgreSQL database
+- Docker and Docker Compose (for PostgreSQL setup)
 - pip or poetry
+
+### PostgreSQL Setup with Docker
+
+The easiest way to set up PostgreSQL for local development is using Docker:
+
+#### Option 1: Using Docker Compose (Recommended)
+
+1. **Create a `docker-compose.yml` file** in the project root:
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: shopsmart-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: product_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+```
+
+2. **Start PostgreSQL**:
+```bash
+docker-compose up -d
+```
+
+3. **Verify it's running**:
+```bash
+docker-compose ps
+# Should show postgres service as "Up (healthy)"
+```
+
+4. **Check logs** (if needed):
+```bash
+docker-compose logs postgres
+```
+
+5. **Stop PostgreSQL** (when done):
+```bash
+docker-compose down
+# To also remove the data volume: docker-compose down -v
+```
+
+#### Option 2: Using Docker Run
+
+```bash
+# Start PostgreSQL container
+docker run -d \
+  --name shopsmart-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=product_db \
+  -p 5432:5432 \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:15-alpine
+
+# Check if it's running
+docker ps | grep shopsmart-postgres
+
+# Stop the container
+docker stop shopsmart-postgres
+
+# Remove the container (data persists in volume)
+docker rm shopsmart-postgres
+```
+
+#### Database Migrations
+
+After PostgreSQL is running, apply database migrations:
+
+```bash
+# Set connection string
+export SQL_CONNECTION_STRING="postgresql://postgres:postgres@localhost:5432/product_db"
+
+# Run migrations
+cd api
+alembic upgrade head
+
+# Seed initial data (optional)
+# psql -h localhost -U postgres -d product_db -f ../db/seed_data.sql
+```
 
 ### Installation
 
-1. Create a virtual environment:
+1. **Create a virtual environment**:
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-2. Install dependencies:
+2. **Install dependencies**:
 ```bash
 pip install -r requirements.txt
 ```
@@ -43,25 +136,56 @@ pip install -e .
 pip install -e ".[dev]"  # For development dependencies
 ```
 
-3. Configure environment variables:
+3. **Configure environment variables**:
 ```bash
 cp .env.example .env
 # Edit .env with your database credentials
 ```
 
-4. Set up the database:
+For Docker PostgreSQL setup, your `.env` should contain:
 ```bash
-# Make sure PostgreSQL is running
-# The application will create tables automatically on first run
+SQL_CONNECTION_STRING=postgresql://postgres:postgres@localhost:5432/product_db
+APP_ENV=development
 ```
 
-5. Run the application:
+4. **Set up the database** (if not using migrations):
+```bash
+# Make sure PostgreSQL is running (via Docker)
+# The application will attempt to run migrations on startup
+# Or run manually: alembic upgrade head
+```
+
+5. **Run the application**:
 ```bash
 uvicorn app.main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`
 API documentation at `http://localhost:8000/docs`
+
+### Troubleshooting Docker PostgreSQL
+
+**Connection refused error:**
+- Ensure Docker container is running: `docker-compose ps` or `docker ps`
+- Check if port 5432 is already in use: `lsof -i :5432` (macOS/Linux)
+- Verify connection string matches Docker setup
+
+**Container won't start:**
+- Check logs: `docker-compose logs postgres`
+- Ensure port 5432 is not used by another PostgreSQL instance
+- Try removing and recreating: `docker-compose down -v && docker-compose up -d`
+
+**Reset database:**
+```bash
+# Stop and remove container with data
+docker-compose down -v
+
+# Start fresh
+docker-compose up -d
+
+# Re-run migrations
+alembic upgrade head
+```
 
 ## Project Structure
 
@@ -160,4 +284,3 @@ mypy app
 ## License
 
 MIT
-

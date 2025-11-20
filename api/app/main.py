@@ -1,32 +1,40 @@
 """
 FastAPI main application file
 """
+
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware as FastAPICORSMiddleware
 from app.config import settings
 from app.db import engine, Base
 from app.middleware import LoggingMiddleware
-from app.routes import (
-    health,
-    products,
-    supermarkets,
-    prices,
-    compare
-)
+from app.routes import health, products, supermarkets, prices, compare
 import logging
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# Create database tables (in production, use Alembic migrations)
-# Skip in test environment to avoid connection errors
+# Database migrations are managed via Alembic
+# Run migrations with: alembic upgrade head
+# In production, migrations are the source of truth (no manual table creation)
+# Skip table creation in test environment
 if settings.app_env != "test":
-    Base.metadata.create_all(bind=engine)
+    # Note: In production, use Alembic migrations instead of create_all
+    # This is kept for backward compatibility in development
+    # For production deployments, ensure migrations are run via CI/CD or startup script
+    try:
+        from alembic.config import Config
+        from alembic import command
+
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+    except Exception as e:
+        logger.warning(f"Could not run Alembic migrations: {e}. Falling back to create_all.")
+        Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
 # OpenAPI is automatically enabled by FastAPI (available at /docs, /redoc, /openapi.json)
@@ -40,7 +48,6 @@ app = FastAPI(
 app.add_middleware(LoggingMiddleware)
 
 # Add CORS middleware
-from fastapi.middleware.cors import CORSMiddleware as FastAPICORSMiddleware
 app.add_middleware(
     FastAPICORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -57,13 +64,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     errors = exc.errors()
     error_messages = [f"{error['loc']}: {error['msg']}" for error in errors]
     message = "; ".join(error_messages) if error_messages else "Validation error"
-    
+
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={
-            "error": "UnprocessableEntity",
-            "message": message
-        }
+        content={"error": "UnprocessableEntity", "message": message},
     )
 
 
@@ -71,13 +75,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions with structured error responses"""
     error_type = _get_error_type(exc.status_code)
-    
+
     return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "error": error_type,
-            "message": exc.detail
-        }
+        status_code=exc.status_code, content={"error": error_type, "message": exc.detail}
     )
 
 
@@ -85,15 +85,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle unexpected exceptions (500)"""
     logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
-    
+
     error_detail = "Internal server error" if not settings.debug else str(exc)
-    
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "error": "InternalServerError",
-            "message": error_detail
-        }
+        content={"error": "InternalServerError", "message": error_detail},
     )
 
 
@@ -114,7 +111,9 @@ def _get_error_type(status_code: int) -> str:
 
 # Include routers
 app.include_router(health.router, tags=["Health"])
-app.include_router(supermarkets.router, prefix=f"{settings.api_prefix}/supermarkets", tags=["Supermarkets"])
+app.include_router(
+    supermarkets.router, prefix=f"{settings.api_prefix}/supermarkets", tags=["Supermarkets"]
+)
 app.include_router(products.router, prefix=f"{settings.api_prefix}/products", tags=["Products"])
 app.include_router(prices.router, prefix=f"{settings.api_prefix}/prices", tags=["Prices"])
 app.include_router(compare.router, prefix=f"{settings.api_prefix}/compare", tags=["Compare"])
@@ -126,5 +125,5 @@ async def root():
     return {
         "message": "Welcome to Product Comparison API",
         "version": settings.app_version,
-        "docs": "/docs"
+        "docs": "/docs",
     }
