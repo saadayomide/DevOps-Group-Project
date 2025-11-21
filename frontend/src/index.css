@@ -1,0 +1,19 @@
+:root { --primary: #2563eb; --muted: #666; --bg: #f7fafc; --panel: #fff; }
+body { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background: var(--bg); margin: 0; padding: 20px; color: #111; }
+.container { max-width: 900px; margin: 0 auto; }
+.panel { background: var(--panel); padding: 16px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.input-row { display: flex; gap: 8px; margin-bottom: 8px; }
+input[type="text"], input[type="search"], input { flex: 1; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; }
+.btn { padding: 8px 12px; border-radius: 6px; background: #eee; border: none; cursor: pointer; }
+.btn.primary { background: var(--primary); color: #fff; }
+.small { margin-left: 8px; font-size: 12px; padding: 4px 6px; }
+.items { list-style: none; padding: 0; margin: 0; }
+.items li { padding: 6px 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #f1f5f9; }
+.muted { color: var(--muted); }
+.error { color: #b91c1c; margin-top: 8px; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #f1f5f9; }
+.price { color: var(--primary); font-weight: 600; }
+.stores { list-style: none; padding: 0; margin: 0 0 8px 0; }
+.stores li { padding: 4px 0; }
+.overall { margin-top: 8px; font-weight: 600; }
