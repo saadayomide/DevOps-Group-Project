@@ -12,4 +12,4 @@ CI/CD:
 Monitoring:
 - App Insights needs an instrumentation key (or set via Key Vault). Telemetry is initialized at startup when APPINSIGHTS_INSTRUMENTATIONKEY is present.
 
-See docs/deployment_guide.md for more details.
+See docs/deployment_guide.md for more details.s
