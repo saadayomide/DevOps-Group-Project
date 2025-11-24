@@ -3,40 +3,53 @@ import React, { useState } from 'react'
 export default function ShoppingList({ items, setItems }) {
   const [value, setValue] = useState('')
 
-  function addItem() {
-    const v = value.trim()
-    if (!v) return
-    setItems([...items, v])
+  const addItem = () => {
+    const trimmed = value.trim()
+    if (!trimmed) return
+    setItems([...items, trimmed])
     setValue('')
   }
 
-  function removeAt(i) {
-    setItems(items.filter((_, idx) => idx !== i))
+  const removeAt = (index) => {
+    setItems(items.filter((_, i) => i !== index))
   }
 
+  const clearList = () => setItems([])
+
   return (
-    <div className="shopping-list">
-      <h2>Shopping List</h2>
-      <div className="input-row">
-        <input
-          placeholder="Add item (e.g. milk)"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addItem()}
-        />
-        <button onClick={addItem} className="btn">Add</button>
-        <button onClick={() => setItems([])} className="btn">Clear</button>
+    <div className="card shopping-card">
+      <div className="card-header">
+        <h2>Shopping List</h2>
       </div>
 
-      <ul className="items">
-        {items.map((it, i) => (
-          <li key={`${it}-${i}`}>
-            <span>{it}</span>
-            <button onClick={() => removeAt(i)} className="small">Remove</button>
-          </li>
-        ))}
-        {!items.length && <li className="muted">No items yet</li>}
-      </ul>
+      <div className="card-body">
+        <div className="stacked-input">
+          <input
+            placeholder="Add an item (e.g. 1L milk, eggs, pasta...)"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addItem()}
+          />
+          <button type="button" onClick={addItem} className="btn primary full">
+            Add
+          </button>
+        </div>
+        <button type="button" className="link muted" onClick={clearList}>
+          Clear list
+        </button>
+
+        <ul className="item-list">
+          {items.map((it, i) => (
+            <li key={`${it}-${i}`}>
+              <span>{it}</span>
+              <button type="button" className="icon-button" onClick={() => removeAt(i)}>
+                ×
+              </button>
+            </li>
+          ))}
+          {!items.length && <li className="muted">No items yet</li>}
+        </ul>
+      </div>
     </div>
   )
 }
