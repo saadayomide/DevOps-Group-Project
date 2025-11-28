@@ -9,6 +9,7 @@ import './App.css';
 /**
  * Main App Component
  * Wires together all components and handles the compare flow
+ * Includes comprehensive error handling and retry logic
  */
 const App = () => {
   // State management
@@ -18,6 +19,9 @@ const App = () => {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const MAX_RETRIES = 3;
 
   // Load supermarkets on mount (needed for normalization)
   React.useEffect(() => {
@@ -36,11 +40,15 @@ const App = () => {
   /**
    * Handle compare button click
    * Validates input, normalizes data, and calls API
+   * Includes error handling for different error types (422, network, timeout)
    */
-  const handleCompare = async () => {
-    // Reset previous results and errors
-    setResults(null);
-    setError(null);
+  const handleCompare = async (isRetry = false) => {
+    // Reset previous results and errors (unless retrying)
+    if (!isRetry) {
+      setResults(null);
+      setError(null);
+      setRetryCount(0);
+    }
 
     // Client-side validation
     if (items.length === 0) {
@@ -57,6 +65,7 @@ const App = () => {
       setLoading(true);
 
       // Normalize and prepare request
+      // This handles: lowercase, trim, remove double spaces, deduplicate
       const normalizedRequest = prepareCompareRequest(
         {
           items,
@@ -65,18 +74,44 @@ const App = () => {
         supermarkets
       );
 
-      // Call API
+      // Call API with timeout handling (handled in apiFetch)
       const response = await compareItems(normalizedRequest);
 
-      // Handle response
+      // Handle successful response
       setResults(response);
       setError(null);
+      setRetryCount(0); // Reset retry count on success
     } catch (err) {
-      // Handle errors from API or normalization
-      setError(err.message || 'Failed to compare items. Please try again.');
+      // Handle different error types
+      let errorMessage = err.message || 'Failed to compare items. Please try again.';
+
+      // Categorize errors for better UX
+      if (errorMessage.includes('timeout')) {
+        errorMessage = 'Request timeout - the server took too long to respond. Please try again.';
+      } else if (errorMessage.includes('network') || errorMessage.includes('connection')) {
+        errorMessage = 'Network error - please check your internet connection and try again.';
+      } else if (errorMessage.includes('422') || errorMessage.includes('UnprocessableEntity')) {
+        errorMessage = `Validation error: ${errorMessage}. Please check your input and try again.`;
+      } else if (errorMessage.includes('400') || errorMessage.includes('BadRequest')) {
+        errorMessage = `Invalid request: ${errorMessage}. Please check your input.`;
+      }
+
+      setError(errorMessage);
       setResults(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Handle retry for compare operation
+   */
+  const handleRetryCompare = () => {
+    if (retryCount < MAX_RETRIES) {
+      setRetryCount(prev => prev + 1);
+      handleCompare(true);
+    } else {
+      setError('Maximum retry attempts reached. Please check your input and try again.');
     }
   };
 
@@ -127,6 +162,7 @@ const App = () => {
               results={results}
               error={error}
               loading={loading}
+              onRetry={retryCount < MAX_RETRIES ? handleRetryCompare : null}
             />
           </section>
         )}

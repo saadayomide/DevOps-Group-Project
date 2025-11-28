@@ -1,13 +1,13 @@
 """
 Unit tests for normalization service
 """
-import pytest
+
 from app.services.normalization import (
     normalize_item_name,
     normalize_product_name,
     tokenize_product_name,
     calculate_similarity,
-    SYNONYMS_MAP
+    SYNONYMS_MAP,
 )
 
 
@@ -34,43 +34,43 @@ def test_normalize_item_name_synonyms():
     assert normalize_item_name("capsicum") == "bell pepper"
     assert normalize_item_name("sweet pepper") == "bell pepper"
     assert normalize_item_name("bell pepper") == "bell pepper"
-    
+
     # Eggplant / Aubergine
     assert normalize_item_name("aubergine") == "eggplant"
     assert normalize_item_name("eggplant") == "eggplant"
-    
+
     # Zucchini / Courgette
     assert normalize_item_name("courgette") == "zucchini"
     assert normalize_item_name("zucchini") == "zucchini"
-    
+
     # Cilantro / Coriander
     assert normalize_item_name("coriander") == "cilantro"
     assert normalize_item_name("fresh coriander") == "cilantro"
     assert normalize_item_name("cilantro") == "cilantro"
-    
+
     # Arugula / Rocket
     assert normalize_item_name("rocket") == "arugula"
     assert normalize_item_name("rocket lettuce") == "arugula"
     assert normalize_item_name("arugula") == "arugula"
-    
+
     # Scallion / Green onion
     assert normalize_item_name("scallion") == "green onion"
     assert normalize_item_name("spring onion") == "green onion"
     assert normalize_item_name("green onion") == "green onion"
-    
+
     # Ground beef / Minced beef
     assert normalize_item_name("minced beef") == "ground beef"
     assert normalize_item_name("ground beef") == "ground beef"
-    
+
     # Ice cream
     assert normalize_item_name("icecream") == "ice cream"
     assert normalize_item_name("ice cream") == "ice cream"
-    
+
     # Hot dog
     assert normalize_item_name("hotdog") == "hot dog"
     assert normalize_item_name("frankfurter") == "hot dog"
     assert normalize_item_name("hot dog") == "hot dog"
-    
+
     # Ketchup
     assert normalize_item_name("tomato sauce") == "ketchup"
     assert normalize_item_name("catsup") == "ketchup"
@@ -102,10 +102,10 @@ def test_calculate_similarity():
     """Test similarity calculation"""
     similarity = calculate_similarity("milk", "milk 2l")
     assert 0 < similarity <= 1
-    
+
     similarity_exact = calculate_similarity("milk", "milk")
     assert similarity_exact == 1.0
-    
+
     similarity_different = calculate_similarity("milk", "bread")
     assert similarity_different == 0.0
 
@@ -119,4 +119,3 @@ def test_synonyms_map_coverage():
     assert "courgette" in SYNONYMS_MAP
     assert "zucchini" in SYNONYMS_MAP
     assert len(SYNONYMS_MAP) > 0
-

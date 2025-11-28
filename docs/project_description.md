@@ -25,7 +25,7 @@ Backend analyzes price data and suggests optimal product-to-store mapping
 Real-time price comparison with detailed savings breakdown
 
 
-## MVP Features 
+## MVP Features
 1. Shopping List Management
   - Create and manage shopping lists
   - Add/remove items from list

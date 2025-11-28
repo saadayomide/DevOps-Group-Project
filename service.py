@@ -1,5 +1,5 @@
 from typing import Dict, List, Optional, Tuple
-from .models import CompareRequest, CompareResponse, Recommendation
+from models import CompareRequest, CompareResponse, Recommendation
 
 # Example in-memory price table for TeamC development. Replace with real DB/queries.
 SAMPLE_PRICES = {

@@ -126,5 +126,3 @@ az webapp config appsettings set \
 Trigger: Push to main or develop branch
 Duration: ~3-5 minutes
 Required: All stages must pass
-
-

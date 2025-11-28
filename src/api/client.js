@@ -72,6 +72,25 @@ const createTimeout = (ms) => {
 /**
  * Base fetch function with error handling, timeout, and JSON parsing
  *
+ * Request Structure:
+ * - Automatically adds base URL from environment variable
+ * - Sets Content-Type: application/json header
+ * - Handles timeout (default: 10 seconds)
+ * - Parses JSON responses
+ *
+ * Response Mapping:
+ * - 200 OK → Returns parsed JSON data
+ * - 204 No Content → Returns null
+ * - 400/404/422/500 → Throws Error with user-friendly message
+ * - Network errors → Throws Error with network message
+ * - Timeout → Throws Error with timeout message
+ *
+ * Error Handling:
+ * - Backend errors: {error: "ErrorType", message: "Error description"}
+ * - Network errors: "Network error - please check your connection"
+ * - Timeout errors: "Request timeout - please try again"
+ * - Invalid JSON: "Invalid response format from server"
+ *
  * @param {string} endpoint - API endpoint (e.g., '/api/v1/products')
  * @param {RequestInit} options - Fetch options (method, body, headers, etc.)
  * @param {number} timeout - Request timeout in milliseconds (default: 10000)
@@ -82,20 +101,21 @@ export const apiFetch = async (endpoint, options = {}, timeout = DEFAULT_TIMEOUT
   const baseUrl = getApiUrl();
   const url = `${baseUrl}${endpoint}`;
 
-  // Default headers
+  // Default headers - always send JSON content type
   const headers = {
     'Content-Type': 'application/json',
     ...options.headers,
   };
 
-  // Prepare fetch options
+  // Prepare fetch options with merged headers
   const fetchOptions = {
     ...options,
     headers,
   };
 
   try {
-    // Race between fetch and timeout
+    // Race between fetch and timeout to prevent hanging requests
+    // If timeout wins, response will be undefined
     const response = await Promise.race([
       fetch(url, fetchOptions),
       createTimeout(timeout),
@@ -106,7 +126,7 @@ export const apiFetch = async (endpoint, options = {}, timeout = DEFAULT_TIMEOUT
       throw new Error('Request timeout - please try again');
     }
 
-    // Handle non-OK responses
+    // Handle non-OK HTTP responses (400, 404, 422, 500, etc.)
     if (!response.ok) {
       const errorMessage = await parseError(response);
       throw new Error(errorMessage);
@@ -117,19 +137,18 @@ export const apiFetch = async (endpoint, options = {}, timeout = DEFAULT_TIMEOUT
       const data = await response.json();
       return data;
     } catch (e) {
-      // If response is not JSON, return empty object
-      // Some endpoints might return 204 No Content
+      // Handle non-JSON responses (e.g., 204 No Content)
       if (response.status === 204) {
         return null;
       }
       throw new Error('Invalid response format from server');
     }
   } catch (error) {
-    // Re-throw if it's already an Error with a message
+    // Re-throw if it's already an Error with a message (from above)
     if (error instanceof Error) {
       throw error;
     }
-    // Handle network errors
+    // Handle unexpected errors (network failures, etc.)
     throw new Error('Network error - please check your connection');
   }
 };

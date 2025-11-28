@@ -1,16 +1,18 @@
 import React from 'react';
+import LoadingSpinner from './LoadingSpinner';
+import ErrorDisplay from './ErrorDisplay';
 
 /**
  * CompareResults Component
  * Displays the comparison results from the backend
  * Handles empty results, unmatched items, and error states
  */
-const CompareResults = ({ results, error, loading }) => {
+const CompareResults = ({ results, error, loading, onRetry }) => {
   // Loading state
   if (loading) {
     return (
-      <div className="compare-results loading">
-        <p>Comparing prices...</p>
+      <div className="compare-results">
+        <LoadingSpinner message="Comparing prices across stores..." />
       </div>
     );
   }
@@ -18,9 +20,12 @@ const CompareResults = ({ results, error, loading }) => {
   // Error state
   if (error) {
     return (
-      <div className="compare-results error">
-        <h3>Error</h3>
-        <p>{error}</p>
+      <div className="compare-results">
+        <ErrorDisplay
+          error={error}
+          onRetry={onRetry}
+          errorType="general"
+        />
       </div>
     );
   }

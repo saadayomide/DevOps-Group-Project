@@ -1,34 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { getSupermarkets } from '../api';
+import LoadingSpinner from './LoadingSpinner';
+import ErrorDisplay from './ErrorDisplay';
 
 /**
  * SupermarketList Component
  * Displays checkboxes for selecting supermarkets to compare
  * Handles API calls, loading states, and errors gracefully
+ * Includes retry logic for failed requests
  */
 const SupermarketList = ({ selectedStores, onStoreChange }) => {
   const [supermarkets, setSupermarkets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const MAX_RETRIES = 3;
+
+  const fetchSupermarkets = async (isRetry = false) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getSupermarkets();
+      setSupermarkets(data);
+      setRetryCount(0); // Reset retry count on success
+    } catch (err) {
+      setError(err.message);
+      // Set empty array on error to prevent crashes
+      setSupermarkets([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchSupermarkets() {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await getSupermarkets();
-        setSupermarkets(data);
-      } catch (err) {
-        setError(err.message);
-        // Set empty array on error to prevent crashes
-        setSupermarkets([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchSupermarkets();
   }, []);
+
+  const handleRetry = () => {
+    if (retryCount < MAX_RETRIES) {
+      setRetryCount(prev => prev + 1);
+      fetchSupermarkets(true);
+    } else {
+      setError('Maximum retry attempts reached. Please refresh the page.');
+    }
+  };
 
   const handleCheckboxChange = (storeName) => {
     if (!onStoreChange) return;
@@ -46,8 +62,9 @@ const SupermarketList = ({ selectedStores, onStoreChange }) => {
   // Loading state
   if (loading) {
     return (
-      <div className="supermarket-list loading">
-        <p>Loading supermarkets...</p>
+      <div className="supermarket-list">
+        <h3>Select Supermarkets to Compare</h3>
+        <LoadingSpinner message="Loading supermarkets..." />
       </div>
     );
   }
@@ -55,9 +72,18 @@ const SupermarketList = ({ selectedStores, onStoreChange }) => {
   // Error state
   if (error) {
     return (
-      <div className="supermarket-list error">
-        <p>Error loading supermarkets: {error}</p>
-        <button onClick={() => window.location.reload()}>Retry</button>
+      <div className="supermarket-list">
+        <h3>Select Supermarkets to Compare</h3>
+        <ErrorDisplay
+          error={error}
+          onRetry={retryCount < MAX_RETRIES ? handleRetry : null}
+          errorType="network"
+        />
+        {retryCount >= MAX_RETRIES && (
+          <p className="retry-limit-message">
+            Unable to load supermarkets. Please check your connection and refresh the page.
+          </p>
+        )}
       </div>
     );
   }

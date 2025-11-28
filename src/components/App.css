@@ -310,6 +310,16 @@ body {
   background: #c0392b;
 }
 
+.retry-limit-message {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fff3cd;
+  border-radius: 4px;
+  color: #856404;
+  font-size: 14px;
+  text-align: center;
+}
+
 /* Footer */
 .app-footer {
   text-align: center;

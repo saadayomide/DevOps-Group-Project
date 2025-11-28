@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
-from .models import CompareRequest, CompareResponse
-from .service import compare_items
+from models import CompareRequest, CompareResponse
+from service import compare_items
 
 router = APIRouter(prefix="/teamc", tags=["teamc"])
 
