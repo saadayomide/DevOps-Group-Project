@@ -9,9 +9,9 @@ export default function Results({ results, comparing, bestStore, savings }) {
         </div>
         <div className="card-body empty-state">
           <div className="empty-icon">🔍</div>
-          <h3>No comparison yet</h3>
+          <h3>Comparison results will appear here</h3>
           <p className="muted">
-            Add items and select supermarkets to find the best price.
+            Add items to your shopping list and select supermarkets, then click "Compare Prices" to see results.
           </p>
         </div>
       </div>
@@ -23,25 +23,25 @@ export default function Results({ results, comparing, bestStore, savings }) {
   return (
     <div className="card results-card">
       <div className="card-header">
-        <h2>Results</h2>
+        <h2>Comparison Results</h2>
         {comparing && <span className="badge">Updating…</span>}
       </div>
 
       <div className="card-body">
         <div className="results-summary">
           <div className="summary-main">
-            <span className="muted">Best option</span>
+            <span className="muted">Best Option</span>
             <div className="summary-value">
               {bestStore ? (
                 <>
-                  {bestStore.store} – Total: €{Number(bestStore.total).toFixed(2)}
+                  <strong>{bestStore.store}</strong> – Total: €{Number(bestStore.total).toFixed(2)}
                 </>
               ) : (
                 `Overall total: €${Number(overallTotal).toFixed(2)}`
               )}
             </div>
           </div>
-          {savings !== null && savings !== undefined && (
+          {savings !== null && savings !== undefined && savings > 0 && (
             <div className="summary-save">
               <span className="muted">You save up to</span>
               <div className="savings">€{savings.toFixed(2)}</div>
@@ -50,6 +50,7 @@ export default function Results({ results, comparing, bestStore, savings }) {
         </div>
 
         <div className="store-totals">
+          <h3 className="section-title">Store Totals</h3>
           {storeTotals.map((t) => (
             <div
               key={t.store}
@@ -66,43 +67,43 @@ export default function Results({ results, comparing, bestStore, savings }) {
           {!storeTotals.length && <div className="muted">No totals available</div>}
         </div>
 
-        <div className="table-wrapper">
+        <div className="results-divider"></div>
+
+        <div className="table-section">
+          <h3 className="section-title">Item Details</h3>
+          <div className="table-wrapper">
           <table>
             <thead>
               <tr>
                 <th>Item</th>
-                <th>Best store</th>
+                <th>Cheapest Store</th>
                 <th>Price</th>
-                <th>Other stores / notes</th>
               </tr>
             </thead>
             <tbody>
               {items.map((it, i) => {
                 const price =
                   typeof it.price === 'number' ? it.price.toFixed(2) : it.price
-                const notes =
-                  it.notes ||
-                  it.alternatives?.map((a) => `${a.store}: €${a.price}`).join(', ')
                 return (
                   <tr key={`${it.name}-${i}`}>
                     <td>{it.name}</td>
-                    <td>{it.store}</td>
+                    <td>{it.store || 'N/A'}</td>
                     <td className="price-cell">
                       <span className="price-value">€{price}</span>
                     </td>
-                    <td className="muted">{notes || '—'}</td>
                   </tr>
                 )
               })}
               {!items.length && (
                 <tr>
-                  <td colSpan="4" className="muted">
-                    No matched items
+                  <td colSpan="3" className="muted" style={{ textAlign: 'center', padding: '20px' }}>
+                    No matched items found
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {unmatched && unmatched.length > 0 && (

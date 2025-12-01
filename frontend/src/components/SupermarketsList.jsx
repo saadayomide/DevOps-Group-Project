@@ -8,6 +8,7 @@ export default function SupermarketsList({
   onCompare,
   onResetSelection,
   comparing,
+  canCompare = false,
 }) {
   const toggle = (name) => {
     if (selected.includes(name)) setSelected(selected.filter((s) => s !== name))
@@ -21,8 +22,14 @@ export default function SupermarketsList({
         <p className="muted small-text">Choose where you want to compare</p>
       </div>
       <div className="card-body">
-        {loading && <div className="muted">Loading supermarkets…</div>}
-        <ul className="stores checklist">
+        {loading && (
+          <div className="loading-placeholder">
+            <div className="loading-spinner-small"></div>
+            <span className="muted">Loading supermarkets…</span>
+          </div>
+        )}
+        {!loading && (
+          <ul className="stores checklist">
           {supermarkets.map((s) => (
             <li key={s.id ?? s.name}>
               <label>
@@ -35,17 +42,26 @@ export default function SupermarketsList({
               </label>
             </li>
           ))}
-          {!loading && supermarkets.length === 0 && <li className="muted">No supermarkets</li>}
-        </ul>
+          {supermarkets.length === 0 && <li className="muted">No supermarkets available</li>}
+          </ul>
+        )}
 
         <button
           type="button"
           className="btn primary full"
           onClick={onCompare}
-          disabled={comparing}
+          disabled={comparing || !canCompare}
+          aria-label="Compare prices across selected supermarkets"
         >
-          {comparing ? 'Comparing…' : 'Compare prices'}
+          {comparing ? 'Comparing…' : 'Compare Prices'}
         </button>
+        {!canCompare && !comparing && (
+          <p className="muted small-text" style={{ marginTop: '-8px', textAlign: 'center' }}>
+            {selected.length === 0
+              ? 'Select at least one supermarket to compare'
+              : 'Add items to your shopping list to compare'}
+          </p>
+        )}
         <button type="button" className="link muted" onClick={onResetSelection}>
           Reset selection
         </button>

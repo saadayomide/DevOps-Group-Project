@@ -3,6 +3,8 @@ import { fetchSupermarkets, compareBasket } from '../api'
 import ShoppingList from '../components/ShoppingList'
 import SupermarketsList from '../components/SupermarketsList'
 import Results from '../components/Results'
+import LoadingIndicator from '../components/LoadingIndicator'
+import ErrorMessage from '../components/ErrorMessage'
 
 export default function ShoppingPage() {
   const [supermarkets, setSupermarkets] = useState([])
@@ -24,23 +26,33 @@ export default function ShoppingPage() {
       .finally(() => setLoadingStores(false))
   }, [])
 
+  // Validation: At least 1 item and 1 store required
+  const canCompare = useMemo(() => {
+    return items.length > 0 && selectedStores.length > 0
+  }, [items.length, selectedStores.length])
+
   const handleCompare = async () => {
     setError('')
     setResults(null)
+
+    // Validate: No empty items
     if (!items.length) {
-      setError('Add at least one item to compare.')
+      setError('Please add at least one item to compare.')
       return
     }
+
+    // Validate: At least 1 store selected
     if (!selectedStores.length) {
-      setError('Select at least one supermarket.')
+      setError('Please select at least one supermarket to compare.')
       return
     }
+
     setComparing(true)
     try {
       const resp = await compareBasket(items, selectedStores)
       setResults(resp)
     } catch (e) {
-      setError(e.message)
+      setError(e.message || 'Failed to compare prices. Please try again.')
     } finally {
       setComparing(false)
     }
@@ -62,8 +74,8 @@ export default function ShoppingPage() {
 
   return (
     <div className="dashboard">
-      {error && <div className="alert error">{error}</div>}
-      {comparing && <div className="alert info">Comparing prices...</div>}
+      <ErrorMessage message={error} type="error" />
+      <LoadingIndicator isLoading={comparing} message="Comparing prices..." />
 
       <div className="dashboard-grid">
         <ShoppingList items={items} setItems={setItems} />
@@ -75,6 +87,7 @@ export default function ShoppingPage() {
           onCompare={handleCompare}
           onResetSelection={() => setSelectedStores([])}
           comparing={comparing}
+          canCompare={canCompare}
         />
         <Results
           results={results}
