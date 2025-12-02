@@ -109,7 +109,7 @@ git push -u origin main
 
 ## Part 3: Verification & Testing
 
-1. Verify Pipeline Execution: 
+1. Verify Pipeline Execution:
 Watch the pipeline run through all stages:
   - Build (Install dependencies, package app)
   - Lint (Code quality checks)

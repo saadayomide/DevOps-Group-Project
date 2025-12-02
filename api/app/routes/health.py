@@ -1,6 +1,7 @@
 """
 Health check endpoints
 """
+
 from fastapi import APIRouter
 from datetime import datetime
 from app.db import SessionLocal
@@ -19,20 +20,20 @@ async def database_health_check():
     """Database health check endpoint"""
     try:
         from sqlalchemy import text
+
         db = SessionLocal()
         # Try to execute a simple query
-        result = db.execute(text("SELECT 1"))
+        db.execute(text("SELECT 1"))
         db.close()
         return {
             "status": "healthy",
             "database": "connected",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:
         return {
             "status": "unhealthy",
             "database": "disconnected",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
-
