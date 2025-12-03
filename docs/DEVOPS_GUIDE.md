@@ -52,21 +52,18 @@ az webapp config appsettings set --resource-group shopsmart-rg \
   --name shopsmart-backend-staging \
   --settings CORS_ORIGINS="https://shopsmart-frontend-staging.azurewebsites.net"
 
-# Run Smoke Tests
+# Run Smoke Tests (optional - can be done manually via curl)
 export BACKEND_URL=https://shopsmart-backend-staging.azurewebsites.net
-./scripts/smoke-test.sh
+curl -f https://shopsmart-backend-staging.azurewebsites.net/health
 ```
 
 ---
 
 ## Azure Infrastructure Setup
 
-### Step 1: Run Infrastructure Setup Script
+### Step 1: Create Azure Resources
 
-```bash
-chmod +x setup-azure.sh
-./setup-azure.sh
-```
+Create the following resources manually via Azure Portal or Azure CLI:
 
 This creates:
 - Resource Group: `shopsmart-rg`
@@ -266,11 +263,6 @@ The frontend reads the API base URL from `VITE_API_BASE` during build (configure
 
 ### Backend Smoke Tests
 
-```bash
-export BACKEND_URL=https://shopsmart-backend-staging.azurewebsites.net
-./scripts/smoke-test.sh
-```
-
 **Manual Checks**:
 ```bash
 # Health check
@@ -286,8 +278,11 @@ open https://shopsmart-backend-staging.azurewebsites.net/docs
 ### Frontend Validation
 
 ```bash
-export FRONTEND_URL=https://shopsmart-frontend-staging.azurewebsites.net
-./scripts/validate-frontend.sh
+# Check frontend loads
+curl -I https://shopsmart-frontend-staging.azurewebsites.net
+
+# Verify HTML structure
+curl https://shopsmart-frontend-staging.azurewebsites.net | grep -q 'id="root"'
 ```
 
 **Manual Checks**:

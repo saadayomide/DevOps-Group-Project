@@ -1,52 +1,38 @@
 # ShopSmart - Quick Reference Card
 
-## Fast Setup (5 Steps)
+## Fast Setup
 
-1. Setup Azure Resources
-````bash
-chmod +x setup-azure.sh
-./setup-azure.sh
-# Save the Web App name from output
-````
+1. **Azure Resources**: Create via Azure Portal or CLI (see `docs/DEVOPS_GUIDE.md`)
 
-2. Create Service Connection
-Azure DevOps → Project Settings → Service Connections
-New → Azure Resource Manager
-Name: BCSAI2025-DEVOPS-STUDENTS-A
-Select subscription & resource group
+2. **GitHub Secrets**: Add required secrets in GitHub repository settings:
+   - `AZURE_CREDENTIALS`
+   - `AZURE_ACR_USERNAME`
+   - `AZURE_ACR_PASSWORD`
+   - `AZURE_BACKEND_STAGING_APP_NAME`
+   - `AZURE_BACKEND_PRODUCTION_APP_NAME`
+   - `AZURE_FRONTEND_STAGING_APP_NAME`
+   - `AZURE_FRONTEND_PRODUCTION_APP_NAME`
 
-3. Update Pipeline Config
-Edit azure-pipelines.yml:
-````bash
-variables:
-  azureSubscription: 'BCSAI2025-DEVOPS-STUDENTS-A'
-  appServiceName: 'your-web-app-name'  # From step 1
-````
+3. **GitHub Environments**: Create `staging` and `production` environments
 
-4. Push to repository
-````bash
-git add .
-git commit -m "Setup CI/CD pipeline"
-git push origin main
-````
+4. **Push to repository**: CI/CD will automatically trigger on push to `teamC2` (staging) or `main` (production)
 
-5. Create Pipeline
-Azure DevOps → Pipelines → New
-Select repo → Existing YAML
-Choose azure-pipelines.yml → Run
-
-
-## Required files in the repository
+## Project Structure
 ````bash
 shopsmart/
-├── azure-pipelines.yml          # CI/CD pipeline
-├── main.py                       # FastAPI application
-├── requirements.txt              # Python dependencies
-├── README.md                     # Documentation
-├── tests/
-│   ├── __init__.py
-│   └── test_integration.py      # Integration tests
-└── ShopSmart.postman_collection.json  # Postman tests
+├── api/                          # Backend FastAPI application
+│   ├── app/                      # Application code
+│   ├── tests/                    # Test suite
+│   ├── requirements.txt          # Python dependencies
+│   └── Dockerfile                # Container image
+├── frontend/                     # Frontend React application
+│   ├── src/                      # Source code
+│   ├── package.json              # Node dependencies
+│   └── Dockerfile                # Container image
+├── .github/workflows/            # CI/CD pipelines
+│   ├── backend.yml               # Backend pipeline
+│   └── frontend.yml              # Frontend pipeline
+└── docs/                         # Documentation
 ````
 
 
@@ -62,8 +48,9 @@ pytest --cov=. --cov-report=html
 # Specific test file
 pytest tests/test_integration.py -v
 
-# Run app locally
-uvicorn main:app --reload --port 8000
+# Run app locally (from api/ directory)
+cd api
+uvicorn app.main:app --reload --port 8000
 ````
 
 2. Test endpoints
@@ -116,13 +103,12 @@ az webapp config appsettings set \
 ````
 
 
-## Pipeline stages
-1. BUILD      → Install dependencies, create artifact
-2. LINT       → Flake8, Black formatting checks
-3. TEST       → Pytest with coverage (>80%)
-4. PUBLISH    → Prepare deployment package
-5. DEPLOY     → Deploy to Azure App Service
+## Pipeline stages (GitHub Actions)
+1. **BUILD**      → Build Docker image
+2. **TEST**       → Run pytest tests (backend only)
+3. **PUSH**       → Push image to Azure Container Registry
+4. **DEPLOY**     → Deploy container to Azure App Service
 
-Trigger: Push to main or develop branch
-Duration: ~3-5 minutes
-Required: All stages must pass
+**Trigger**: Push to `teamC2` (staging) or `main` (production)
+**Duration**: ~5-10 minutes
+**Required**: All stages must pass

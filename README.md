@@ -1,45 +1,66 @@
-ShopSmart — TeamC (Sprint 1)
+# ShopSmart — Price Comparison Application
 
-Quick start (local):
-1. Copy .env.example -> .env and set APPINSIGHTS_INSTRUMENTATIONKEY
-2. Install deps: python -m pip install -r requirements.txt
-3. Run: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+A full-stack application for comparing product prices across multiple supermarkets, built with FastAPI (backend) and React (frontend), deployed to Azure with CI/CD via GitHub Actions.
 
-CI/CD:
-- azure_pipelines.yml is configured to Build → Lint → Test → Publish → Deploy (staging)
-- setup-azure.sh will create Resource Group, App Service plan, Web App, Application Insights and Key Vault, and will wire Key Vault secret to the Web App.
+## Quick Start
 
-Monitoring:
-- App Insights needs an instrumentation key (or set via Key Vault). Telemetry is initialized at startup when APPINSIGHTS_INSTRUMENTATIONKEY is present.
-
-See docs/deployment_guide.md for more details.s
-
-## TeamB2 branch (what was added)
-This branch adds a minimal /api router and basic integration endpoints used by tests:
-- New file: api.py — exposes /api/supermarkets, /api/products, /api/prices, /api/compare
-- Tests: basic smoke tests under tests/ (and any integration tests already present)
-
-Quick local steps
-1. Switch to branch:
-   git fetch origin
-   git switch teamB2 || git switch -c teamB2 --track origin/teamB2
-
-2. Create & activate venv (macOS):
+### Backend (Local Development)
+1. Navigate to the `api/` directory
+2. Create a virtual environment:
+   ```bash
    python3 -m venv .venv
-   source .venv/bin/activate
-
-3. Install deps:
-   python -m pip install --upgrade pip
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+3. Install dependencies:
+   ```bash
    pip install -r requirements.txt
+   ```
+4. Set up environment variables (see `api/.env.example`)
+5. Run the application:
+   ```bash
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
 
-4. Run app:
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+### Frontend (Local Development)
+1. Navigate to the `frontend/` directory
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Run the development server:
+   ```bash
+   npm run dev
+   ```
 
-5. Run tests:
-   python -m pytest -q
-   # or run just the smoke tests:
-   python -m pytest tests/test_api_basic.py -q
+## CI/CD
 
-Notes
-- Ensure APPINSIGHTS_INSTRUMENTATIONKEY is set in .env if you want telemetry initialized.
-- If you need a tiny extra commit, update README or .gitignore and commit/push as shown below.
+- **GitHub Actions** workflows in `.github/workflows/` handle automated builds, tests, and deployments
+- **Backend**: Builds Docker image, runs tests, pushes to Azure Container Registry (ACR), and deploys to Azure App Service
+- **Frontend**: Builds Docker image, pushes to ACR, and deploys to Azure App Service
+- **Environments**: Staging (on `teamC2` branch) and Production (on `main` branch)
+
+## Project Structure
+
+```
+├── api/                    # Backend FastAPI application
+│   ├── app/                # Application code
+│   ├── tests/              # Test suite
+│   ├── alembic/            # Database migrations
+│   └── Dockerfile          # Container image definition
+├── frontend/               # Frontend React application
+│   ├── src/                # Source code
+│   └── Dockerfile          # Container image definition
+├── docs/                   # Documentation
+└── .github/workflows/      # CI/CD pipelines
+```
+
+## Documentation
+
+- **DevOps Guide**: `docs/DEVOPS_GUIDE.md` - Complete deployment and infrastructure setup
+- **Architecture**: `api/docs/ARCHITECTURE.md` - Backend architecture details
+- **Testing**: `api/docs/TESTING.md` - Testing guidelines
+
+## Monitoring
+
+- Application Insights is configured for production deployments
+- Connection string is set via environment variables in Azure App Service
