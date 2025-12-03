@@ -31,6 +31,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio pytest-azurepipelines httpx
 
       - name: Run tests
         working-directory: ./api
@@ -45,8 +46,19 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Log in to ACR
-        run: az acr login --name shopsmartacr
+      - name: Enable ACR admin user (if not enabled)
+        run: |
+          az acr update --name shopsmartacr --admin-enabled true || true
+
+      - name: Get ACR credentials and login
+        id: acr-login
+        run: |
+          # Get ACR admin credentials
+          ACR_USERNAME=$(az acr credential show --name shopsmartacr --query username -o tsv)
+          ACR_PASSWORD=$(az acr credential show --name shopsmartacr --query passwords[0].value -o tsv)
+
+          # Login to ACR using Docker
+          echo "$ACR_PASSWORD" | docker login shopsmartacr.azurecr.io -u "$ACR_USERNAME" --password-stdin
 
       - name: Build and push image to ACR
         id: meta
@@ -78,11 +90,31 @@ jobs:
         with:
           inlineScript: |
             IMAGE="${{ needs.build-test-and-publish-image.outputs.image-tag }}"
+
+            # Get ACR credentials
+            ACR_USERNAME=$(az acr credential show --name shopsmartacr --query username -o tsv)
+            ACR_PASSWORD=$(az acr credential show --name shopsmartacr --query passwords[0].value -o tsv)
+
+            # Configure container
             az webapp config container set \
               --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
               --name shopsmart-backend-staging \
               --docker-custom-image-name "$IMAGE" \
-              --docker-registry-server-url "https://shopsmartacr.azurecr.io"
+              --docker-registry-server-url "https://shopsmartacr.azurecr.io" \
+              --docker-registry-server-user "$ACR_USERNAME" \
+              --docker-registry-server-password "$ACR_PASSWORD"
+
+            # Set startup command
+            az webapp config set \
+              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
+              --name shopsmart-backend-staging \
+              --startup-file "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+            # Set port
+            az webapp config appsettings set \
+              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
+              --name shopsmart-backend-staging \
+              --settings WEBSITES_PORT=8000
 
             az webapp restart \
               --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
@@ -109,11 +141,31 @@ jobs:
         with:
           inlineScript: |
             IMAGE="${{ needs.build-test-and-publish-image.outputs.image-tag }}"
+
+            # Get ACR credentials
+            ACR_USERNAME=$(az acr credential show --name shopsmartacr --query username -o tsv)
+            ACR_PASSWORD=$(az acr credential show --name shopsmartacr --query passwords[0].value -o tsv)
+
+            # Configure container
             az webapp config container set \
               --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
               --name shopsmart-backend-production \
               --docker-custom-image-name "$IMAGE" \
-              --docker-registry-server-url "https://shopsmartacr.azurecr.io"
+              --docker-registry-server-url "https://shopsmartacr.azurecr.io" \
+              --docker-registry-server-user "$ACR_USERNAME" \
+              --docker-registry-server-password "$ACR_PASSWORD"
+
+            # Set startup command
+            az webapp config set \
+              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
+              --name shopsmart-backend-production \
+              --startup-file "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+            # Set port
+            az webapp config appsettings set \
+              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
+              --name shopsmart-backend-production \
+              --settings WEBSITES_PORT=8000
 
             az webapp restart \
               --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
