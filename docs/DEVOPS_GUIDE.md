@@ -1,13 +1,13 @@
-# Team C - DevOps & Deployment Guide
+# Team C - DevOps & Deployment Guide (GitHub Actions)
 
-Complete guide for Azure infrastructure, CI/CD pipelines, and deployment automation.
+Complete guide for Azure infrastructure, GitHub Actions CI/CD, and container-based deployment.
 
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
 2. [Azure Infrastructure Setup](#azure-infrastructure-setup)
-3. [Azure DevOps Configuration](#azure-devops-configuration)
-4. [CI/CD Pipeline Setup](#cicd-pipeline-setup)
+3. [GitHub Actions Configuration](#github-actions-configuration)
+4. [CI/CD Workflow Overview](#cicd-workflow-overview)
 5. [Containerization & ACR](#containerization--acr)
 6. [CORS Configuration](#cors-configuration)
 7. [Environment Variables](#environment-variables)
@@ -105,112 +105,93 @@ az webapp create \
 
 ---
 
-## Azure DevOps Configuration
+## GitHub Actions Configuration
 
-### Step 1: Create Service Connection
+### 1. Create Environments in GitHub
 
-1. Azure DevOps → Project Settings → Service Connections
-2. New Service Connection → Azure Resource Manager
-3. Service Principal (automatic)
-4. Configure:
-   - **Subscription**: Your Azure subscription
-   - **Resource Group**: `shopsmart-rg`
-   - **Service Connection Name**: `Shop-Smart-Service`
-   - ✅ Grant access permission to all pipelines
-5. Save
+In your GitHub repository:
 
-### Step 2: Create Variable Groups
-
-#### Backend-Secrets
-
-1. Pipelines → Library → Variable Groups → + Variable group
-2. Name: `Backend-Secrets`
-3. Add variables:
-
-| Variable | Value | Secret? |
-|----------|-------|---------|
-| `SQL_CONNECTION_STRING` | `postgresql://...` | ✅ Yes |
-| `APPINSIGHTS_INSTRUMENTATIONKEY` | (from App Insights) | ✅ Yes |
-| `APP_ENV` | `staging` or `production` | No |
-| `CORS_ORIGINS` | `https://frontend-staging.azurewebsites.net,https://frontend-prod.azurewebsites.net` | No |
-
-#### Frontend-Config
-
-1. Create new variable group: `Frontend-Config`
-2. Add variables:
-
-| Variable | Value | Secret? |
-|----------|-------|---------|
-| `VITE_API_BASE_STAGING` | `https://backend-staging.azurewebsites.net/api/v1` | No |
-| `VITE_API_BASE_PRODUCTION` | `https://backend-prod.azurewebsites.net/api/v1` | No |
-
-### Step 3: Create Environments
-
-1. Pipelines → Environments → New Environment
+1. Go to **Settings → Environments**.
 2. Create:
-   - **staging**: No approval required
-   - **production**: Require manual approval (add approvers)
+   - Environment **`staging`** (no approval required).
+   - Environment **`production`** (add required reviewers for manual approval).
+
+These are used by the workflows in `.github/workflows/backend.yml` and `.github/workflows/frontend.yml`.
+
+### 2. Create Azure Service Principal & Secret
+
+Create a service principal that GitHub Actions will use:
+
+```bash
+az ad sp create-for-rbac \
+  --name shopsmart-github-actions \
+  --role contributor \
+  --scopes /subscriptions/<SUBSCRIPTION_ID>/resourceGroups/BCSAI2025-DEVOPS-STUDENT-5A \
+  --sdk-auth
+```
+
+Copy the **JSON output** and save it as a GitHub repo secret:
+
+- **Name**: `AZURE_CREDENTIALS`
+- **Value**: (entire JSON from the command above)
+
+### 3. Add Other GitHub Secrets (Optional)
+
+If your backend code expects extra secrets (e.g. DB password separately), you can also create:
+
+- `SQL_CONNECTION_STRING` (same value as in App Service)
+- `APPINSIGHTS_CONNECTION_STRING` or `APPINSIGHTS_INSTRUMENTATIONKEY`
 
 ---
 
-## CI/CD Pipeline Setup
+## CI/CD Workflow Overview
 
-### Backend Pipeline
+### Backend Workflow (`.github/workflows/backend.yml`)
 
-1. **Create Pipeline**:
-   - Pipelines → Pipelines → New Pipeline
-   - Select repository
-   - Existing Azure Pipelines YAML file
-   - Path: `/azure-pipelines-backend.yml`
-   - Continue → Run
+Triggered on push to `main` for `api/**`:
 
-2. **Update Variables** in `azure-pipelines-backend.yml`:
-   ```yaml
-   variables:
-     backendAppServiceStaging: 'shopsmart-backend-staging'
-     backendAppServiceProduction: 'shopsmart-backend-production'
-     azureSubscription: 'Shop-Smart-Service'
-     acrName: 'shopsmartacr'
-     acrLoginServer: 'shopsmartacr.azurecr.io'
-     backendImageRepository: 'shopsmart-backend'
-   ```
+- **Job 1 – Build, Test & Push Image**
+  - Install Python 3.11
+  - Install dependencies from `api/requirements.txt`
+  - Run `pytest` for the backend
+  - Login to Azure using `AZURE_CREDENTIALS`
+  - Login to ACR `shopsmartacr`
+  - Build Docker image from `api/Dockerfile` and push to:
+    - `shopsmartacr.azurecr.io/shopsmart-backend:<git-sha>`
 
-3. **Link Variable Group**:
-   - Edit pipeline → Variables → Variable groups
-   - Link `Backend-Secrets`
+- **Job 2 – Deploy Staging**
+  - Environment: `staging`
+  - Configure App Service `shopsmart-backend-staging` to use the pushed image
+  - Restart the app
 
-4. **Pipeline Stages**:
-   - ✅ Build: Install dependencies, package app
-   - ✅ Lint: Run Flake8 and Black
-   - ✅ Test: Run pytest with coverage
-   - ✅ Deploy Staging (Container): Build & push image to ACR, deploy container
-   - ✅ Deploy Production (Container): Manual approval, deploy container from ACR
+- **Job 3 – Deploy Production**
+  - Environment: `production` (manual approval via GitHub environment)
+  - Configure App Service `shopsmart-backend-production` to use the same image
+  - Restart the app
 
-### Frontend Pipeline
+### Frontend Workflow (`.github/workflows/frontend.yml`)
 
-1. **Create Pipeline**:
-   - New Pipeline → Existing YAML file
-   - Path: `/azure-pipelines-frontend.yml`
+Triggered on push to `main` for `frontend/**`:
 
-2. **Update Variables**:
-   ```yaml
-   variables:
-     frontendAppServiceStaging: 'shopsmart-frontend-staging'
-     frontendAppServiceProduction: 'shopsmart-frontend-production'
-     azureSubscription: 'Shop-Smart-Service'
-     acrName: 'shopsmartacr'
-     acrLoginServer: 'shopsmartacr.azurecr.io'
-     frontendImageRepository: 'shopsmart-frontend'
-   ```
+- **Job 1 – Build & Push Images**
+  - Login to Azure and ACR
+  - Build **staging image** from `frontend/Dockerfile` with:
+    - `VITE_API_BASE=https://shopsmart-backend-staging.azurewebsites.net/api/v1`
+    - Tag: `shopsmartacr.azurecr.io/shopsmart-frontend:<git-sha>`
+  - Build **production image** with:
+    - `VITE_API_BASE=https://shopsmart-backend-production.azurewebsites.net/api/v1`
+    - Tag: `shopsmartacr.azurecr.io/shopsmart-frontend:<git-sha>-prod`
+  - Push both images to ACR
 
-3. **Link Variable Group**:
-   - Link `Frontend-Config`
+- **Job 2 – Deploy Staging**
+  - Environment: `staging`
+  - Configure App Service `shopsmart-frontend-staging` to use the staging image
+  - Restart the app
 
-4. **Pipeline Stages**:
-   - ✅ Build: Install dependencies, build React app
-   - ✅ Lint: Run ESLint
-   - ✅ Deploy Staging (Container): Build & push image to ACR, deploy container
-   - ✅ Deploy Production (Container): Manual approval, deploy container from ACR
+- **Job 3 – Deploy Production**
+  - Environment: `production`
+  - Configure App Service `shopsmart-frontend-production` to use the production image
+  - Restart the app
 
 ---
 
@@ -231,42 +212,7 @@ az acr create \
    - **ACR Name**: `shopsmartacr`
    - **Login Server**: `shopsmartacr.azurecr.io`
 
-Update these in both pipeline files if your names differ.
-
-### Backend Docker Image
-
-- Dockerfile: `api/Dockerfile`
-- Built and pushed by `azure-pipelines-backend.yml` using:
-  - Image: `shopsmartacr.azurecr.io/shopsmart-backend:<build-id>`
-- App Services (`shopsmart-backend-staging`, `shopsmart-backend-production`) are configured to run this container.
-
-### Frontend Docker Image
-
-- Dockerfile: `frontend/Dockerfile`
-- Built and pushed by `azure-pipelines-frontend.yml` using:
-  - Staging image: `shopsmartacr.azurecr.io/shopsmart-frontend:<build-id>`
-  - Production image: `shopsmartacr.azurecr.io/shopsmart-frontend:<build-id>-prod`
-- App Services (`shopsmart-frontend-staging`, `shopsmart-frontend-production`) are configured to run these containers.
-
-### Converting Existing App Services to Container Mode
-
-The pipelines now deploy using `webAppContainer` type, so you only need:
-
-```bash
-az webapp config container set \
-  --resource-group shopsmart-rg \
-  --name shopsmart-backend-staging \
-  --docker-custom-image-name shopsmartacr.azurecr.io/shopsmart-backend:<some-tag> \
-  --docker-registry-server-url https://shopsmartacr.azurecr.io
-
-az webapp config container set \
-  --resource-group shopsmart-rg \
-  --name shopsmart-frontend-staging \
-  --docker-custom-image-name shopsmartacr.azurecr.io/shopsmart-frontend:<some-tag> \
-  --docker-registry-server-url https://shopsmartacr.azurecr.io
-```
-
-After the first successful pipeline run, the YAML will deploy the correct tags automatically.
+Update these in both workflow files if your names differ.
 
 ---
 
@@ -411,18 +357,17 @@ postgresql://username:password@server.database.azure.com:5432/database?sslmode=r
 
 ## Architecture
 
-### Pipeline Flow
+### Workflow & Deployment Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Azure DevOps Pipelines                     │
+│                     GitHub Actions                           │
 ├─────────────────────────────────────────────────────────────┤
-│  Backend CI/CD          │  Frontend CI/CD                    │
-│  - Build                │  - Build                           │
-│  - Lint                 │  - Lint                            │
-│  - Test                 │  - Deploy                          │
-│  - Deploy Staging       │  - Deploy Staging                  │
-│  - Deploy Production    │  - Deploy Production               │
+│  Backend Workflow        │  Frontend Workflow                │
+│  - Build & Test          │  - Build (Vite)                   │
+│  - Push Image to ACR     │  - Push Images to ACR             │
+│  - Deploy Staging        │  - Deploy Staging                 │
+│  - Deploy Production     │  - Deploy Production              │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼

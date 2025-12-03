@@ -1,0 +1,114 @@
+name: Frontend CI/CD (Staging & Production)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+
+jobs:
+  build-and-publish-image:
+    name: Build and Push Image
+    runs-on: ubuntu-latest
+
+    outputs:
+      staging-image-tag: ${{ steps.staging_meta.outputs.image-tag }}
+      production-image-tag: ${{ steps.production_meta.outputs.image-tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to ACR
+        run: az acr login --name shopsmartacr
+
+      - name: Build and push staging image
+        id: staging_meta
+        run: |
+          IMAGE_TAG_STAGING="shopsmartacr.azurecr.io/shopsmart-frontend:${GITHUB_SHA}"
+          echo "image-tag=$IMAGE_TAG_STAGING" >> "$GITHUB_OUTPUT"
+
+          docker build \
+            --build-arg VITE_API_BASE="https://shopsmart-backend-staging.azurewebsites.net/api/v1" \
+            -t "$IMAGE_TAG_STAGING" ./frontend
+
+          docker push "$IMAGE_TAG_STAGING"
+
+      - name: Build and push production image
+        id: production_meta
+        run: |
+          IMAGE_TAG_PROD="shopsmartacr.azurecr.io/shopsmart-frontend:${GITHUB_SHA}-prod"
+          echo "image-tag=$IMAGE_TAG_PROD" >> "$GITHUB_OUTPUT"
+
+          docker build \
+            --build-arg VITE_API_BASE="https://shopsmart-backend-production.azurewebsites.net/api/v1" \
+            -t "$IMAGE_TAG_PROD" ./frontend
+
+          docker push "$IMAGE_TAG_PROD"
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build-and-publish-image
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Configure App Service container (staging)
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            IMAGE="${{ needs.build-and-publish-image.outputs.staging-image-tag }}"
+            az webapp config container set \
+              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
+              --name shopsmart-frontend-staging \
+              --docker-custom-image-name "$IMAGE" \
+              --docker-registry-server-url "https://shopsmartacr.azurecr.io"
+
+            az webapp restart \
+              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
+              --name shopsmart-frontend-staging
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [build-and-publish-image, deploy-staging]
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Configure App Service container (production)
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            IMAGE="${{ needs.build-and-publish-image.outputs.production-image-tag }}"
+            az webapp config container set \
+              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
+              --name shopsmart-frontend-production \
+              --docker-custom-image-name "$IMAGE" \
+              --docker-registry-server-url "https://shopsmartacr.azurecr.io"
+
+            az webapp restart \
+              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
+              --name shopsmart-frontend-production
