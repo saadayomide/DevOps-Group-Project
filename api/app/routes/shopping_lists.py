@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
 from app.models import ShoppingList, ShoppingListItem
+from app.services.shopping_list_service import refresh_shopping_list as refresh_list_service
 from app.schemas import (
     ShoppingListCreateRequest,
     ShoppingListResponse,
@@ -103,16 +104,17 @@ async def refresh_shopping_list(
     db: Session = Depends(get_db),
 ):
     """
-    Placeholder refresh endpoint.
-    For now it only bumps last_refreshed to the current time.
+    Refresh a shopping list by scraping offers and picking the best per item.
     """
-    shopping_list = db.query(ShoppingList).filter(ShoppingList.id == list_id).first()
+    shopping_list = (
+        db.query(ShoppingList)
+        .options(joinedload(ShoppingList.items))
+        .filter(ShoppingList.id == list_id)
+        .first()
+    )
     if shopping_list is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shopping list not found")
 
-    shopping_list.last_refreshed = datetime.utcnow()
-    db.commit()
-    db.refresh(shopping_list)
-    db.refresh(shopping_list, attribute_names=["items"])
+    shopping_list = await refresh_list_service(db, shopping_list)
 
     return _to_response(shopping_list)
