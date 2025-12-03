@@ -12,14 +12,31 @@ export default function ShoppingPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    let isMounted = true
     setLoading(true)
+    setError('')
+
     fetchSupermarkets()
       .then((list) => {
-        setSupermarkets(list)
-        setSelectedStores(list.slice(0, 3).map((s) => s.name))
+        if (!isMounted) return
+        setSupermarkets(list || [])
+        // Auto-select first 3 stores if available
+        if (list && list.length > 0) {
+          setSelectedStores(list.slice(0, 3).map((s) => s.name))
+        }
       })
-      .catch((e) => setError(`Failed to load supermarkets: ${e.message}`))
-      .finally(() => setLoading(false))
+      .catch((e) => {
+        if (!isMounted) return
+        console.error('Failed to fetch supermarkets:', e)
+        setError(`Unable to connect to server. Please check if the backend is running.`)
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   const toggleStore = (name) => {
@@ -150,7 +167,7 @@ export default function ShoppingPage() {
         <h2>Select supermarkets</h2>
         {loading ? (
           <div className="muted">Loading supermarkets...</div>
-        ) : (
+        ) : supermarkets.length > 0 ? (
           <div className="chip-group">
             {supermarkets.map((s) => (
               <button
@@ -162,7 +179,18 @@ export default function ShoppingPage() {
                 {s.name}
               </button>
             ))}
-            {!supermarkets.length && <span className="muted">No supermarkets available</span>}
+          </div>
+        ) : (
+          <div className="muted">
+            No supermarkets available. 
+            <button 
+              type="button" 
+              className="link-button" 
+              onClick={() => window.location.reload()}
+              style={{ marginLeft: '0.5rem' }}
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -170,7 +198,7 @@ export default function ShoppingPage() {
           type="button"
           className="btn primary full"
           onClick={handleCompare}
-          disabled={comparing || !items.length}
+          disabled={comparing || !items.length || !selectedStores.length}
         >
           {comparing ? 'Comparing...' : 'Compare prices'}
         </button>
