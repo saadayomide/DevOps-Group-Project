@@ -28,16 +28,17 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Log in to ACR
-        run: az acr login --name shopsmartacr
+        run: |
+          echo "${{ secrets.AZURE_ACR_PASSWORD }}" | docker login shopsmartacr.azurecr.io -u "${{ secrets.AZURE_ACR_USERNAME }}" --password-stdin
 
       - name: Build and push staging image
         id: staging_meta
         run: |
-          IMAGE_TAG_STAGING="shopsmartacr.azurecr.io/shopsmart-frontend:${GITHUB_SHA}"
+          IMAGE_TAG_STAGING="shopsmartacr.azurecr.io/${{ secrets.FRONTEND_IMAGE_NAME }}:${GITHUB_SHA}"
           echo "image-tag=$IMAGE_TAG_STAGING" >> "$GITHUB_OUTPUT"
 
           docker build \
-            --build-arg VITE_API_BASE="https://shopsmart-backend-staging.azurewebsites.net/api/v1" \
+            --build-arg VITE_API_BASE="https://${{ secrets.AZURE_BACKEND_STAGING_APP_NAME }}.azurewebsites.net/api/v1" \
             -t "$IMAGE_TAG_STAGING" ./frontend
 
           docker push "$IMAGE_TAG_STAGING"
@@ -45,11 +46,11 @@ jobs:
       - name: Build and push production image
         id: production_meta
         run: |
-          IMAGE_TAG_PROD="shopsmartacr.azurecr.io/shopsmart-frontend:${GITHUB_SHA}-prod"
+          IMAGE_TAG_PROD="shopsmartacr.azurecr.io/${{ secrets.FRONTEND_IMAGE_NAME }}:${GITHUB_SHA}-prod"
           echo "image-tag=$IMAGE_TAG_PROD" >> "$GITHUB_OUTPUT"
 
           docker build \
-            --build-arg VITE_API_BASE="https://shopsmart-backend-production.azurewebsites.net/api/v1" \
+            --build-arg VITE_API_BASE="https://${{ secrets.AZURE_BACKEND_PRODUCTION_APP_NAME }}.azurewebsites.net/api/v1" \
             -t "$IMAGE_TAG_PROD" ./frontend
 
           docker push "$IMAGE_TAG_PROD"
@@ -76,14 +77,16 @@ jobs:
           inlineScript: |
             IMAGE="${{ needs.build-and-publish-image.outputs.staging-image-tag }}"
             az webapp config container set \
-              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
-              --name shopsmart-frontend-staging \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ secrets.AZURE_FRONTEND_STAGING_APP_NAME }}" \
               --docker-custom-image-name "$IMAGE" \
-              --docker-registry-server-url "https://shopsmartacr.azurecr.io"
+              --docker-registry-server-url "https://shopsmartacr.azurecr.io" \
+              --docker-registry-server-user "${{ secrets.AZURE_ACR_USERNAME }}" \
+              --docker-registry-server-password "${{ secrets.AZURE_ACR_PASSWORD }}"
 
             az webapp restart \
-              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
-              --name shopsmart-frontend-staging
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ secrets.AZURE_FRONTEND_STAGING_APP_NAME }}"
 
   deploy-production:
     name: Deploy to Production
@@ -107,11 +110,13 @@ jobs:
           inlineScript: |
             IMAGE="${{ needs.build-and-publish-image.outputs.production-image-tag }}"
             az webapp config container set \
-              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
-              --name shopsmart-frontend-production \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ secrets.AZURE_FRONTEND_PRODUCTION_APP_NAME }}" \
               --docker-custom-image-name "$IMAGE" \
-              --docker-registry-server-url "https://shopsmartacr.azurecr.io"
+              --docker-registry-server-url "https://shopsmartacr.azurecr.io" \
+              --docker-registry-server-user "${{ secrets.AZURE_ACR_USERNAME }}" \
+              --docker-registry-server-password "${{ secrets.AZURE_ACR_PASSWORD }}"
 
             az webapp restart \
-              --resource-group BCSAI2025-DEVOPS-STUDENT-5A \
-              --name shopsmart-frontend-production
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ secrets.AZURE_FRONTEND_PRODUCTION_APP_NAME }}"
