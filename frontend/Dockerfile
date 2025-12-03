@@ -17,6 +17,9 @@ RUN npm run build
 # ---- Production image ----
 FROM nginx:alpine
 
+# Copy nginx configuration for SPA routing
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
 WORKDIR /usr/share/nginx/html
 
 # Remove default nginx static content

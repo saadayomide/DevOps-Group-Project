@@ -249,8 +249,8 @@ class CompareService:
                 if key in prices_map:
                     store_total += prices_map[key]
             store_complete_totals[store_id] = store_total
-
-        # overallTotal is the minimum total across all stores
+        
+        # overallTotal is the minimum total across all stores (single-store total)
         if store_complete_totals.values():
             stores_with_all_items = [total for total in store_complete_totals.values() if total > 0]
             if stores_with_all_items:
@@ -260,6 +260,8 @@ class CompareService:
         else:
             overall_total = 0.0
 
+        # Note: overall_total remains the single-store minimum total
+        
         return CompareResponse(
             items=compare_items,
             storeTotals=store_totals_list,

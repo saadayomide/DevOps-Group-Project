@@ -3,8 +3,9 @@ Pydantic schemas for request/response validation
 Aligned to Team A's schema
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Optional, List, Any, Dict
+from datetime import datetime
 
 
 # Product Schemas - Team A schema: Product(id, name, category)
@@ -32,9 +33,7 @@ class Product(ProductBase):
     """Schema for product response"""
 
     id: int
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Simplified response schemas for GET endpoints (small & consistent)
@@ -43,9 +42,7 @@ class ProductResponse(BaseModel):
 
     id: int
     name: str
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SupermarketResponse(BaseModel):
@@ -53,9 +50,7 @@ class SupermarketResponse(BaseModel):
 
     id: int
     name: str
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Supermarket Schemas - Team A schema: Supermarket(id, name, city)
@@ -83,9 +78,7 @@ class Supermarket(SupermarketBase):
     """Schema for supermarket response"""
 
     id: int
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Price Schemas - Team A schema: Price(id, product_id, store_id, price)
@@ -115,9 +108,7 @@ class Price(PriceBase):
     """Schema for price response"""
 
     id: int
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Comparison Schemas - Single source of truth for output format (DoD)
@@ -174,3 +165,60 @@ class ComparisonResult(BaseModel):
     results: List[ProductComparison]
     cheapest: Optional[ProductComparison] = None
     most_expensive: Optional[ProductComparison] = None
+
+
+# Shopping list schemas
+class ShoppingListItemCreate(BaseModel):
+    """Schema for creating a shopping list item"""
+    category: str
+    brand: Optional[str] = None
+    variants: List[str] = Field(default_factory=list)
+    quantity: float
+    unit: str
+
+
+class ShoppingListCreateRequest(BaseModel):
+    """Schema for creating a shopping list with items"""
+    name: str
+    items: List[ShoppingListItemCreate]
+
+
+class ShoppingListItemResponse(BaseModel):
+    """Schema for shopping list item response"""
+    id: int
+    category: str
+    brand: Optional[str]
+    variants: List[str]
+    quantity: float
+    unit: str
+    best_store: Optional[str]
+    best_price: Optional[float]
+    best_url: Optional[str]
+    comparison: Dict[str, Any] = Field(default_factory=dict)
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ShoppingListResponse(BaseModel):
+    """Schema for shopping list response"""
+    id: int
+    name: str
+    created_at: datetime
+    last_refreshed: datetime
+    items: List[ShoppingListItemResponse]
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Catalog schemas
+class CategorySummary(BaseModel):
+    """Lightweight category representation"""
+    code: str
+    label: str
+
+
+class CategoryDetail(BaseModel):
+    """Detailed category representation"""
+    code: str
+    label: str
+    units: List[str]
+    variants: List[str]
+    brands: List[str]

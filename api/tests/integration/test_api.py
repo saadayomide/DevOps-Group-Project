@@ -2,6 +2,7 @@
 Integration tests for API endpoints
 These tests use the test fixtures from conftest.py to avoid SQLite threading issues
 """
+import pytest
 
 
 def test_root_endpoint(test_client):

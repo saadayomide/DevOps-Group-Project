@@ -1,10 +1,17 @@
 """
-Pytest configuration and fixtures for testing
+Pytest configuration and fixtures for testing (file-based SQLite DB)
+
+This conftest creates a temporary SQLite file DB for tests and provides
+fixtures compatible with the project's tests (`test_db`, `test_client`,
+`seed_test_data`). It sets `APP_ENV=test` and `SQL_CONNECTION_STRING`
+before importing the app so the app uses the test DB and skips migrations.
 """
 
-import pytest
 import os
 import tempfile
+from typing import Generator
+
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
@@ -19,9 +26,9 @@ from fastapi import Request, HTTPException, status  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from app.db import Base, get_db  # noqa: E402
-from app.models import Product, Supermarket, Price  # noqa: E402
+from app.models import Product, Supermarket, Price, ShoppingList, ShoppingListItem  # noqa: E402
 from app.config import settings  # noqa: E402
-from app.routes import health, products, supermarkets, prices, compare  # noqa: E402
+from app.routes import health, products, supermarkets, prices, compare, catalog, shopping_lists  # noqa: E402
 from app.middleware import LoggingMiddleware  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware as FastAPICORSMiddleware  # noqa: E402
 
@@ -45,12 +52,6 @@ def _get_error_type(status_code: int) -> str:
 PRODUCT_COUNT = 10
 SUPERMARKET_COUNT = 3
 PRICE_COUNT = 27
-
-
-# Use a temporary file-based SQLite database to avoid threading issues
-# In-memory SQLite databases are not shared across threads
-_test_db_file = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-TEST_DATABASE_URL = f"sqlite:///{_test_db_file.name}"
 
 
 def create_test_app():
@@ -112,6 +113,10 @@ def create_test_app():
     test_app.include_router(prices.router, prefix=f"{settings.api_prefix}/prices", tags=["Prices"])
     test_app.include_router(
         compare.router, prefix=f"{settings.api_prefix}/compare", tags=["Compare"]
+    )
+    test_app.include_router(catalog.router, prefix=f"{settings.api_prefix}", tags=["Catalog"])
+    test_app.include_router(
+        shopping_lists.router, prefix=f"{settings.api_prefix}", tags=["Shopping Lists"]
     )
 
     @test_app.get("/")
@@ -191,58 +196,48 @@ def test_client(test_db):
 
 @pytest.fixture(scope="function")
 def seed_test_data(test_db):
-    """
-    Seed test database with 3 products × 3 stores
-    Returns dict with created objects for easy access in tests
-    """
-    # Create 3 products
-    products = [
+    """Seed the provided `test_db` session with 3 products, 3 supermarkets and 9 prices."""
+    # Products
+    products_list = [
         Product(name="Milk", category="Dairy"),
         Product(name="Bread", category="Bakery"),
         Product(name="Eggs", category="Dairy"),
     ]
-    for product in products:
-        test_db.add(product)
+    for p in products_list:
+        test_db.add(p)
     test_db.commit()
+    for p in products_list:
+        test_db.refresh(p)
 
-    # Refresh to get IDs
-    for product in products:
-        test_db.refresh(product)
-
-    # Create 3 supermarkets
-    supermarkets = [
+    # Supermarkets
+    supermarkets_list = [
         Supermarket(name="Walmart", city="New York"),
         Supermarket(name="Target", city="New York"),
         Supermarket(name="Kroger", city="New York"),
     ]
-    for supermarket in supermarkets:
-        test_db.add(supermarket)
+    for s in supermarkets_list:
+        test_db.add(s)
     test_db.commit()
+    for s in supermarkets_list:
+        test_db.refresh(s)
 
-    # Refresh to get IDs
-    for supermarket in supermarkets:
-        test_db.refresh(supermarket)
-
-    # Create prices: 3 products × 3 stores = 9 prices
-    # Product 1 (Milk): $2.99, $2.49, $2.79
-    # Product 2 (Bread): $1.99, $2.19, $1.89
-    # Product 3 (Eggs): $3.49, $3.29, $3.69
-    prices = [
-        # Milk prices
-        Price(product_id=products[0].id, store_id=supermarkets[0].id, price=2.99),
-        Price(product_id=products[0].id, store_id=supermarkets[1].id, price=2.49),  # Cheapest
-        Price(product_id=products[0].id, store_id=supermarkets[2].id, price=2.79),
-        # Bread prices
-        Price(product_id=products[1].id, store_id=supermarkets[0].id, price=1.99),
-        Price(product_id=products[1].id, store_id=supermarkets[1].id, price=2.19),
-        Price(product_id=products[1].id, store_id=supermarkets[2].id, price=1.89),  # Cheapest
-        # Eggs prices
-        Price(product_id=products[2].id, store_id=supermarkets[0].id, price=3.49),
-        Price(product_id=products[2].id, store_id=supermarkets[1].id, price=3.29),  # Cheapest
-        Price(product_id=products[2].id, store_id=supermarkets[2].id, price=3.69),
+    # Prices (3 products x 3 stores)
+    prices_list = [
+        # Milk
+        Price(product_id=products_list[0].id, store_id=supermarkets_list[0].id, price=2.99),
+        Price(product_id=products_list[0].id, store_id=supermarkets_list[1].id, price=2.49),
+        Price(product_id=products_list[0].id, store_id=supermarkets_list[2].id, price=2.79),
+        # Bread
+        Price(product_id=products_list[1].id, store_id=supermarkets_list[0].id, price=1.99),
+        Price(product_id=products_list[1].id, store_id=supermarkets_list[1].id, price=2.19),
+        Price(product_id=products_list[1].id, store_id=supermarkets_list[2].id, price=1.89),
+        # Eggs
+        Price(product_id=products_list[2].id, store_id=supermarkets_list[0].id, price=3.49),
+        Price(product_id=products_list[2].id, store_id=supermarkets_list[1].id, price=3.29),
+        Price(product_id=products_list[2].id, store_id=supermarkets_list[2].id, price=3.69),
     ]
-    for price in prices:
-        test_db.add(price)
+    for pr in prices_list:
+        test_db.add(pr)
     test_db.commit()
 
-    return {"products": products, "supermarkets": supermarkets, "prices": prices}
+    return {"products": products_list, "supermarkets": supermarkets_list, "prices": prices_list}

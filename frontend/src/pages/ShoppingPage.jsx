@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { compareBasket, fetchSupermarkets } from '../api'
 
 export default function ShoppingPage() {
@@ -68,12 +68,41 @@ export default function ShoppingPage() {
     }
   }, [items, selectedStores])
 
-  const cheapestStore =
-    results?.storeBreakdown &&
-    Object.entries(results.storeBreakdown).reduce(
-      (best, [store, data]) => (!best || data.total < best.total ? { store, ...data } : best),
+  // Transform backend response to store breakdown format for display
+  const storeBreakdown = useMemo(() => {
+    if (!results?.items || !results?.storeTotals) return null
+
+    const breakdown = {}
+
+    // Initialize stores from storeTotals
+    for (const st of results.storeTotals) {
+      breakdown[st.store] = { items: {}, total: st.total }
+    }
+
+    // Add items to their respective stores
+    for (const item of results.items) {
+      if (breakdown[item.store]) {
+        breakdown[item.store].items[item.name] = item.price
+      }
+    }
+
+    return breakdown
+  }, [results])
+
+  // Find the cheapest store
+  const cheapestStore = useMemo(() => {
+    if (!storeBreakdown) return null
+
+    return Object.entries(storeBreakdown).reduce(
+      (best, [store, data]) => {
+        if (data.total > 0 && (!best || data.total < best.total)) {
+          return { store, ...data }
+        }
+        return best
+      },
       null,
     )
+  }, [storeBreakdown])
 
   return (
     <div className="shopping-page">
@@ -152,22 +181,29 @@ export default function ShoppingPage() {
             </div>
           )}
 
+          {/* Unmatched items warning */}
+          {results.unmatched && results.unmatched.length > 0 && (
+            <div className="alert" style={{ background: 'rgba(210, 153, 34, 0.15)', color: 'var(--warning)' }}>
+              <strong>Not found:</strong> {results.unmatched.join(', ')}
+            </div>
+          )}
+
+          {/* Store breakdown grid */}
           <div className="results-grid">
-            {results.storeBreakdown &&
-              Object.entries(results.storeBreakdown).map(([store, data]) => (
+            {storeBreakdown &&
+              Object.entries(storeBreakdown).map(([store, data]) => (
                 <div
                   key={store}
                   className={`store-card ${store === cheapestStore?.store ? 'cheapest' : ''}`}
                 >
                   <h3>{store}</h3>
                   <ul className="price-breakdown">
-                    {data.items &&
-                      Object.entries(data.items).map(([product, price]) => (
-                        <li key={product}>
-                          <span>{product}</span>
-                          <span>{price != null ? `€${price.toFixed(2)}` : '—'}</span>
-                        </li>
-                      ))}
+                    {Object.entries(data.items).map(([product, price]) => (
+                      <li key={product}>
+                        <span>{product}</span>
+                        <span>{price != null ? `€${price.toFixed(2)}` : '—'}</span>
+                      </li>
+                    ))}
                   </ul>
                   <div className="store-total">
                     Total: <strong>€{data.total.toFixed(2)}</strong>
@@ -175,6 +211,23 @@ export default function ShoppingPage() {
                 </div>
               ))}
           </div>
+
+          {/* Item-by-item breakdown (cheapest per item) */}
+          {results.items && results.items.length > 0 && (
+            <div className="card" style={{ marginTop: '1rem', padding: '1rem' }}>
+              <h3 style={{ marginBottom: '0.75rem' }}>Best price per item</h3>
+              <ul className="price-breakdown">
+                {results.items.map((item, idx) => (
+                  <li key={idx}>
+                    <span>{item.name}</span>
+                    <span>
+                      €{item.price.toFixed(2)} <span className="muted">@ {item.store}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {results.overallTotal != null && (
             <div className="overall-total">

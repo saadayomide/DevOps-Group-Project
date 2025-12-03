@@ -247,6 +247,102 @@ api/
 - `GET /api/v1/compare/?query=<product_name>` - Compare product prices
 - `GET /api/v1/compare/product/{product_id}` - Compare specific product
 
+### Catalog API (product categories)
+The catalog API provides static metadata about product categories so the frontend can build structured shopping-list items (instead of free-text).
+
+**Base path:** `/api/v1/catalog`
+
+#### GET `/catalog/categories`
+Returns a list of available categories.
+
+**Response 200 (example)**
+```json
+[
+  {
+    "code": "milk",
+    "label": "Leche"
+  },
+  {
+    "code": "eggs",
+    "label": "Huevos"
+  },
+  {
+    "code": "bread",
+    "label": "Pan"
+  }
+]
+```
+
+Each element is a CategorySummary:
+- `code`: internal code to be used in the shopping list payload (e.g. "milk").
+- `label`: human-friendly label to display in the UI (e.g. "Leche").
+
+#### GET `/catalog/categories/{code}`
+Returns full details for a single category.
+
+**Response 200 (example for milk)**
+```json
+{
+  "code": "milk",
+  "label": "Leche",
+  "units": ["unit", "L"],
+  "variants": ["entera", "semidesnatada", "desnatada", "sin lactosa"],
+  "brands": ["Hacendado", "Carrefour", "Alcampo", "Ahorramás", "El Corte Inglés", "Mercadona"]
+}
+```
+
+If the category does not exist:
+
+**Response 404**
+```json
+{
+  "detail": "Unknown category"
+}
+```
+
+This is used by the frontend to:
+- Build the shopping list item form (fields like brand, variants, unit).
+- Ensure the payload uses a known category code and valid unit/variants.
+
+## Shopping list item shape (planned for next sprint)
+The frontend should **not** send free-text items. Instead, each line in the shopping list will be a structured object built from the catalog.
+
+Planned shape for each item:
+```json
+{
+  "category": "milk",            // from GET /catalog/categories
+  "brand": "Hacendado",          // one of category.brands, or null
+  "variants": ["desnatada"],     // subset of category.variants
+  "quantity": 3.0,
+  "unit": "unit"                 // one of category.units, e.g. "unit" or "L"
+}
+```
+
+Planned request for creating a shopping list:
+```json
+{
+  "name": "Compra fin de semana",
+  "items": [
+    {
+      "category": "milk",
+      "brand": "Hacendado",
+      "variants": ["desnatada"],
+      "quantity": 3,
+      "unit": "unit"
+    },
+    {
+      "category": "eggs",
+      "brand": null,
+      "variants": ["L"],
+      "quantity": 12,
+      "unit": "unit"
+    }
+  ]
+}
+```
+
+This will be handled by `POST /api/v1/shopping-lists` in the next sprint.
+
 ## Testing
 
 Run unit tests:
