@@ -65,7 +65,7 @@ def create_test_app():
     test_app.add_middleware(LoggingMiddleware)
     test_app.add_middleware(
         FastAPICORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=settings.allowed_cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
