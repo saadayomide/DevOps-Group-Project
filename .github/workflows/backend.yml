@@ -59,7 +59,6 @@ jobs:
         run: |
           SHORT_SHA="${GITHUB_SHA::8}"
           echo "tag=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "full-image=${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push image to ACR
         run: |
@@ -75,44 +74,16 @@ jobs:
     if: github.ref == 'refs/heads/teamC2' || github.ref == 'refs/heads/main'
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Log in to Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Configure App Service container (staging)
-        uses: azure/cli@v2
+      - name: Deploy to Azure Web App (staging)
+        uses: azure/webapps-deploy@v3
         with:
-          inlineScript: |
-            FULL_IMAGE="${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-test-and-publish-image.outputs.image-tag }}"
-
-            # Configure container
-            az webapp config container set \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ secrets.AZURE_BACKEND_STAGING_APP_NAME }}" \
-              --container-image-name "$FULL_IMAGE" \
-              --container-registry-url "https://${{ env.ACR_REGISTRY }}" \
-              --container-registry-user "${{ secrets.AZURE_ACR_USERNAME }}" \
-              --container-registry-password "${{ secrets.AZURE_ACR_PASSWORD }}"
-
-            # Set startup command
-            az webapp config set \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ secrets.AZURE_BACKEND_STAGING_APP_NAME }}" \
-              --startup-file "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
-
-            # Set app settings using single line format
-            az webapp config appsettings set \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ secrets.AZURE_BACKEND_STAGING_APP_NAME }}" \
-              --settings "WEBSITES_PORT=8000" "SQL_CONNECTION_STRING=${{ secrets.SQL_CONNECTION_STRING }}" "APPINSIGHTS_CONNECTION_STRING=${{ secrets.APPINSIGHTS_CONNECTION_STRING }}" "APP_ENV=staging" "CORS_ORIGINS=https://${{ secrets.AZURE_FRONTEND_STAGING_APP_NAME }}.azurewebsites.net,https://${{ secrets.AZURE_FRONTEND_PRODUCTION_APP_NAME }}.azurewebsites.net"
-
-            az webapp restart \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ secrets.AZURE_BACKEND_STAGING_APP_NAME }}"
+          app-name: ${{ secrets.AZURE_BACKEND_STAGING_APP_NAME }}
+          images: ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-test-and-publish-image.outputs.image-tag }}
 
   deploy-production:
     name: Deploy to Production
@@ -122,41 +93,13 @@ jobs:
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Log in to Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Configure App Service container (production)
-        uses: azure/cli@v2
+      - name: Deploy to Azure Web App (production)
+        uses: azure/webapps-deploy@v3
         with:
-          inlineScript: |
-            FULL_IMAGE="${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-test-and-publish-image.outputs.image-tag }}"
-
-            # Configure container
-            az webapp config container set \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ secrets.AZURE_BACKEND_PRODUCTION_APP_NAME }}" \
-              --container-image-name "$FULL_IMAGE" \
-              --container-registry-url "https://${{ env.ACR_REGISTRY }}" \
-              --container-registry-user "${{ secrets.AZURE_ACR_USERNAME }}" \
-              --container-registry-password "${{ secrets.AZURE_ACR_PASSWORD }}"
-
-            # Set startup command
-            az webapp config set \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ secrets.AZURE_BACKEND_PRODUCTION_APP_NAME }}" \
-              --startup-file "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
-
-            # Set app settings using single line format
-            az webapp config appsettings set \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ secrets.AZURE_BACKEND_PRODUCTION_APP_NAME }}" \
-              --settings "WEBSITES_PORT=8000" "SQL_CONNECTION_STRING=${{ secrets.SQL_CONNECTION_STRING }}" "APPINSIGHTS_CONNECTION_STRING=${{ secrets.APPINSIGHTS_CONNECTION_STRING }}" "APP_ENV=production" "CORS_ORIGINS=https://${{ secrets.AZURE_FRONTEND_STAGING_APP_NAME }}.azurewebsites.net,https://${{ secrets.AZURE_FRONTEND_PRODUCTION_APP_NAME }}.azurewebsites.net"
-
-            az webapp restart \
-              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ secrets.AZURE_BACKEND_PRODUCTION_APP_NAME }}"
+          app-name: ${{ secrets.AZURE_BACKEND_PRODUCTION_APP_NAME }}
+          images: ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-test-and-publish-image.outputs.image-tag }}
