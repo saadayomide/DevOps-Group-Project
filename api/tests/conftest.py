@@ -4,6 +4,7 @@ Pytest configuration and fixtures for testing
 
 import pytest
 import os
+import tempfile
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
@@ -14,6 +15,9 @@ os.environ["SQL_CONNECTION_STRING"] = "sqlite:///:memory:"
 os.environ["APP_ENV"] = "test"
 
 # Now import app modules
+from fastapi import Request, HTTPException, status  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
 from app.db import Base, get_db  # noqa: E402
 from app.models import Product, Supermarket, Price  # noqa: E402
 from app.config import settings  # noqa: E402
@@ -21,14 +25,32 @@ from app.routes import health, products, supermarkets, prices, compare  # noqa: 
 from app.middleware import LoggingMiddleware  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware as FastAPICORSMiddleware  # noqa: E402
 
+
+def _get_error_type(status_code: int) -> str:
+    """Map status code to error type"""
+    error_types = {
+        400: "BadRequest",
+        401: "Unauthorized",
+        403: "Forbidden",
+        404: "NotFound",
+        422: "UnprocessableEntity",
+        500: "InternalServerError",
+        502: "BadGateway",
+        503: "ServiceUnavailable",
+    }
+    return error_types.get(status_code, "Error")
+
+
 # Compatibility constants for root-level tests (tests/test_prices.py)
 PRODUCT_COUNT = 10
 SUPERMARKET_COUNT = 3
 PRICE_COUNT = 27
 
 
-# Test database URL (SQLite in-memory for fast tests)
-TEST_DATABASE_URL = "sqlite:///:memory:"
+# Use a temporary file-based SQLite database to avoid threading issues
+# In-memory SQLite databases are not shared across threads
+_test_db_file = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+TEST_DATABASE_URL = f"sqlite:///{_test_db_file.name}"
 
 
 def create_test_app():
@@ -48,6 +70,36 @@ def create_test_app():
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Exception handlers (matching main.py)
+    @test_app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        """Handle validation errors (422)"""
+        errors = exc.errors()
+        error_messages = [f"{error['loc']}: {error['msg']}" for error in errors]
+        message = "; ".join(error_messages) if error_messages else "Validation error"
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"error": "UnprocessableEntity", "message": message},
+        )
+
+    @test_app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        """Handle HTTP exceptions with structured error responses"""
+        error_type = _get_error_type(exc.status_code)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": error_type, "message": exc.detail},
+        )
+
+    @test_app.exception_handler(Exception)
+    async def general_exception_handler(request: Request, exc: Exception):
+        """Handle unexpected exceptions (500)"""
+        error_detail = "Internal server error" if not settings.debug else str(exc)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"error": "InternalServerError", "message": error_detail},
+        )
 
     # Include routers
     test_app.include_router(health.router, tags=["Health"])
@@ -81,10 +133,14 @@ app = create_test_app()
 def test_db():
     """
     Create a test database for each test function
-    Uses SQLite in-memory database for fast, isolated tests
+    Uses file-based SQLite database to avoid threading issues with TestClient
     """
-    # Create test engine (SQLite doesn't support max_overflow, pool_size)
-    engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+    # Create a new temporary file for each test to ensure isolation
+    db_file = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    db_url = f"sqlite:///{db_file.name}"
+
+    # Create test engine with check_same_thread=False to allow cross-thread access
+    engine = create_engine(db_url, connect_args={"check_same_thread": False})
 
     # Create all tables using Base from app.db
     Base.metadata.create_all(bind=engine)
@@ -98,19 +154,32 @@ def test_db():
     finally:
         session.close()
         Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+        # Clean up temp file
+        try:
+            os.unlink(db_file.name)
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="function")
 def test_client(test_db):
     """
     Create a test client with test database dependency override
+    Uses the same engine/session factory as test_db to ensure consistency
     """
+    # Get the bind (engine) from the test_db session
+    engine = test_db.get_bind()
+
+    # Create a new session factory bound to the same engine
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
     def override_get_db():
+        db = TestingSessionLocal()
         try:
-            yield test_db
+            yield db
         finally:
-            pass
+            db.close()
 
     app.dependency_overrides[get_db] = override_get_db
 
