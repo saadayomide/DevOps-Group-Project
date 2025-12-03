@@ -36,7 +36,6 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --cov=app --cov-report=html --cov-report=term"
-norecursedirs = [".."]
 
 [tool.black]
 line-length = 100

@@ -31,7 +31,20 @@ class Settings(BaseSettings):
 
     # API
     api_prefix: str = "/api/v1"
+    # CORS origins - read from CORS_ORIGINS env var (comma-separated)
+    # Default allows all origins in development, restrict in production
     cors_origins: List[str] = ["*"]
+
+    @property
+    def allowed_cors_origins(self) -> List[str]:
+        """Get CORS origins from environment variable or default"""
+        import os
+
+        cors_env = os.getenv("CORS_ORIGINS", "")
+        if cors_env:
+            # Split comma-separated values and strip whitespace
+            return [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+        return self.cors_origins
 
     # Security
     secret_key: str = "your-secret-key-change-in-production"

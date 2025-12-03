@@ -47,8 +47,8 @@ class TestCompareRoute:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
-        assert "detail" in data
-        assert "items cannot be empty" in data["detail"].lower()
+        assert data["error"] == "BadRequest"
+        assert "items cannot be empty" in data["message"].lower()
 
     def test_empty_stores_returns_400(self, test_client, seed_test_data):
         """
@@ -60,8 +60,8 @@ class TestCompareRoute:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
-        assert "detail" in data
-        assert "stores cannot be empty" in data["detail"].lower()
+        assert data["error"] == "BadRequest"
+        assert "stores cannot be empty" in data["message"].lower()
 
     def test_invalid_request_body_returns_422(self, test_client, seed_test_data):
         """
@@ -72,7 +72,7 @@ class TestCompareRoute:
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         data = response.json()
-        assert "detail" in data
+        assert data["error"] == "UnprocessableEntity"
 
     def test_invalid_items_type_returns_422(self, test_client, seed_test_data):
         """
@@ -84,7 +84,7 @@ class TestCompareRoute:
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         data = response.json()
-        assert "detail" in data
+        assert data["error"] == "UnprocessableEntity"
 
     def test_unknown_stores_handled_gracefully(self, test_client, seed_test_data):
         """

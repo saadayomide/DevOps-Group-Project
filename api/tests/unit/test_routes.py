@@ -63,7 +63,7 @@ class TestProductsRoute:
         response = test_client.get("/api/v1/products/99999")
         assert response.status_code == status.HTTP_404_NOT_FOUND
         data = response.json()
-        assert "detail" in data
+        assert data["error"] == "NotFound"
 
 
 class TestSupermarketsRoute:
@@ -109,7 +109,7 @@ class TestSupermarketsRoute:
         response = test_client.get("/api/v1/supermarkets/99999")
         assert response.status_code == status.HTTP_404_NOT_FOUND
         data = response.json()
-        assert "detail" in data
+        assert data["error"] == "NotFound"
 
 
 class TestPricesRoute:
@@ -198,7 +198,7 @@ class TestPricesRoute:
         response = test_client.get("/api/v1/prices/99999")
         assert response.status_code == status.HTTP_404_NOT_FOUND
         data = response.json()
-        assert "detail" in data
+        assert data["error"] == "NotFound"
 
     def test_get_prices_invalid_query_params(self, test_client, seed_test_data):
         """Test GET /prices with invalid query parameters"""

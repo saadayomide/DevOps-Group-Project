@@ -36,7 +36,7 @@ repos:
         name: pytest-fast
         entry: pytest
         language: system
-        args: ['-x', '-v', '--tb=short', 'api/tests']
+        args: ['-x', '-v', '--tb=short']
         files: ^api/tests/.*\.py$
         pass_filenames: false
         always_run: false

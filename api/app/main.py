@@ -48,9 +48,10 @@ app = FastAPI(
 app.add_middleware(LoggingMiddleware)
 
 # Add CORS middleware
+# Use allowed_cors_origins property to support environment variable configuration
 app.add_middleware(
     FastAPICORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.allowed_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

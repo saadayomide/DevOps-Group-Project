@@ -3,7 +3,6 @@ Integration tests for API endpoints
 Can be used in CI/CD pipelines and smoke tests
 """
 
-import pytest
 from fastapi import status
 
 
@@ -17,18 +16,12 @@ class TestAPIIntegration:
         data = response.json()
         assert data["status"] == "ok"
 
-    @pytest.mark.skip(
-        reason="Redundant with test_routes.py::TestProductsRoute::test_get_products_with_data"
-    )
     def test_get_products_returns_more_than_zero_rows(self, test_client, seed_test_data):
         """
         Integration Test: GET /products returns >0 rows
 
         This test verifies that the products endpoint returns data,
         which is required for the integration test suite.
-
-        Note: Skipped because this is already covered by
-        test_routes.py::TestProductsRoute::test_get_products_with_data
         """
         response = test_client.get("/api/v1/products/")
 
@@ -44,12 +37,6 @@ class TestAPIIntegration:
             assert isinstance(product["id"], int)
             assert isinstance(product["name"], str)
 
-    @pytest.mark.skip(
-        reason=(
-            "Redundant with test_compare_route.py::"
-            "TestCompareRoute::test_compare_success_all_items_matched"
-        )
-    )
     def test_post_compare_with_3_items_returns_correct_mapping_and_totals(
         self, test_client, seed_test_data
     ):
@@ -131,16 +118,13 @@ class TestAPIIntegration:
                 abs(store_total["total"] - expected_total) < 0.01
             ), f"Store total for {store} should be {expected_total}, got {store_total['total']}"
 
-        # Verify overallTotal is reasonable (minimum total across stores)
+        # Verify overallTotal is reasonable
         if data["storeTotals"]:
             assert data["overallTotal"] >= 0
-            # Overall total should be the minimum total if all items bought at one store
-            # It may be less than min_store_total if not all items are available at all stores
-            assert data["overallTotal"] <= sum(st["total"] for st in data["storeTotals"])
+            # overallTotal should not exceed the sum of store totals
+            total_sum = sum(st["total"] for st in data["storeTotals"])
+            assert data["overallTotal"] <= total_sum
 
-    @pytest.mark.skip(
-        reason="Redundant with test_compare_route.py which already covers compare functionality"
-    )
     def test_post_compare_with_3_items_handles_unmatched(self, test_client, seed_test_data):
         """
         Integration Test: POST /compare handles unmatched items correctly
@@ -162,12 +146,6 @@ class TestAPIIntegration:
         matched_names = [item["name"] for item in data["items"]]
         assert "Milk" in matched_names or "Bread" in matched_names
 
-    @pytest.mark.skip(
-        reason=(
-            "Redundant with test_routes.py::"
-            "TestSupermarketsRoute::test_get_supermarkets_with_data"
-        )
-    )
     def test_get_supermarkets_returns_data(self, test_client, seed_test_data):
         """Test GET /supermarkets returns data"""
         response = test_client.get("/api/v1/supermarkets/")
@@ -182,9 +160,6 @@ class TestAPIIntegration:
             assert "id" in supermarket
             assert "name" in supermarket
 
-    @pytest.mark.skip(
-        reason="Redundant with test_routes.py::TestPricesRoute::test_get_prices_with_data"
-    )
     def test_get_prices_returns_data(self, test_client, seed_test_data):
         """Test GET /prices returns data"""
         response = test_client.get("/api/v1/prices/")

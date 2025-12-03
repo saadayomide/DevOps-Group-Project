@@ -9,19 +9,11 @@ from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
-# Test database URL (SQLite file-based for test isolation)
-# Using a file instead of :memory: ensures the app and test share the same database
-import tempfile as _tempfile
-
-_TEST_DB_FILE = _tempfile.NamedTemporaryFile(delete=False, suffix=".db")
-_TEST_DATABASE_URL = f"sqlite:///{_TEST_DB_FILE.name}"
-
 # Set test environment BEFORE importing any app modules
-os.environ["SQL_CONNECTION_STRING"] = _TEST_DATABASE_URL
+os.environ["SQL_CONNECTION_STRING"] = "sqlite:///:memory:"
 os.environ["APP_ENV"] = "test"
 
 # Now import app modules
-# noqa: E402 - imports must come after environment variables are set
 from app.db import Base, get_db  # noqa: E402
 from app.models import Product, Supermarket, Price  # noqa: E402
 from app.config import settings  # noqa: E402
@@ -29,10 +21,14 @@ from app.routes import health, products, supermarkets, prices, compare  # noqa: 
 from app.middleware import LoggingMiddleware  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware as FastAPICORSMiddleware  # noqa: E402
 
+# Compatibility constants for root-level tests (tests/test_prices.py)
+PRODUCT_COUNT = 10
+SUPERMARKET_COUNT = 3
+PRICE_COUNT = 27
 
-# Use the test database URL defined at module level
-TEST_DATABASE_URL = _TEST_DATABASE_URL
-TEST_DB_FILE = _TEST_DB_FILE
+
+# Test database URL (SQLite in-memory for fast tests)
+TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
 def create_test_app():
@@ -88,13 +84,12 @@ def test_db():
     Uses SQLite in-memory database for fast, isolated tests
     """
     # Create test engine (SQLite doesn't support max_overflow, pool_size)
-    # Use check_same_thread=False to allow async/threading
     engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
 
     # Create all tables using Base from app.db
     Base.metadata.create_all(bind=engine)
 
-    # Create session bound to this engine
+    # Create session
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = TestingSessionLocal()
 
@@ -103,12 +98,6 @@ def test_db():
     finally:
         session.close()
         Base.metadata.drop_all(bind=engine)
-        engine.dispose()
-        # Clean up temp database file
-        import os
-
-        if os.path.exists(TEST_DB_FILE.name):
-            os.unlink(TEST_DB_FILE.name)
 
 
 @pytest.fixture(scope="function")
@@ -116,23 +105,19 @@ def test_client(test_db):
     """
     Create a test client with test database dependency override
     """
-    # Ensure test_db session is ready (tables are already created by test_db fixture)
-    # The dependency override will make the app use this test_db session instead of the default
 
     def override_get_db():
         try:
             yield test_db
         finally:
-            # Don't close the session here - test_db fixture handles cleanup
             pass
 
     app.dependency_overrides[get_db] = override_get_db
 
-    try:
-        with TestClient(app) as client:
-            yield client
-    finally:
-        app.dependency_overrides.clear()
+    with TestClient(app) as client:
+        yield client
+
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="function")

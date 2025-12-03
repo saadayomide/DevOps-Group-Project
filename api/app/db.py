@@ -16,9 +16,6 @@ engine_kwargs = {"pool_pre_ping": True, "echo": settings.debug}  # Verify connec
 if not settings.sql_connection_string.startswith("sqlite"):
     engine_kwargs["pool_size"] = 5
     engine_kwargs["max_overflow"] = 10
-else:
-    # SQLite requires check_same_thread=False for async/threading compatibility
-    engine_kwargs["connect_args"] = {"check_same_thread": False}
 
 engine = create_engine(settings.sql_connection_string, **engine_kwargs)
 
