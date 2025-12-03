@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - teamC2
     paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
@@ -58,6 +59,7 @@ jobs:
     needs: build-and-publish-image
     runs-on: ubuntu-latest
     environment: staging
+    if: github.ref == 'refs/heads/teamC2' || github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout
@@ -88,6 +90,7 @@ jobs:
     needs: [build-and-publish-image, deploy-staging]
     runs-on: ubuntu-latest
     environment: production
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout
