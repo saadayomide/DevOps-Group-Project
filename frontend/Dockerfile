@@ -2,9 +2,9 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
-# Install dependencies
+# Install ALL dependencies (including devDependencies like vite)
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci --include=dev
 
 # Build React app with Vite
 # VITE_API_BASE will be passed as a build-arg from the pipeline
