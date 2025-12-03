@@ -1,6 +1,7 @@
 """
 Product name normalization service
 """
+
 import re
 from typing import List, Dict
 
@@ -54,32 +55,32 @@ def normalize_item_name(s: str) -> str:
     """
     Normalize item name: lowercase, trim, collapse whitespace.
     Optionally applies synonyms map to normalize to canonical form.
-    
+
     Args:
         s: Item name to normalize
-    
+
     Returns:
         Normalized item name
     """
     if not s:
         return ""
-    
+
     # Trim whitespace
     normalized = s.strip()
-    
+
     # Convert to lowercase
     normalized = normalized.lower()
-    
+
     # Collapse whitespace (replace multiple spaces/tabs/newlines with single space)
-    normalized = re.sub(r'\s+', ' ', normalized)
-    
+    normalized = re.sub(r"\s+", " ", normalized)
+
     # Trim again after collapsing whitespace
     normalized = normalized.strip()
-    
+
     # Apply synonyms map if available
     if normalized in SYNONYMS_MAP:
         normalized = SYNONYMS_MAP[normalized]
-    
+
     return normalized
 
 
@@ -93,33 +94,33 @@ def normalize_product_name(name: str) -> str:
     """
     if not name:
         return ""
-    
+
     # Convert to lowercase
     normalized = name.lower()
-    
+
     # Remove extra whitespace
-    normalized = re.sub(r'\s+', ' ', normalized).strip()
-    
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
     # Remove special characters (keep alphanumeric and spaces)
     # normalized = re.sub(r'[^a-z0-9\s]', '', normalized)
-    
+
     # Normalize common abbreviations
     abbreviations = {
-        'oz': 'ounce',
-        'lb': 'pound',
-        'kg': 'kilogram',
-        'g': 'gram',
-        'ml': 'milliliter',
-        'l': 'liter',
-        'pk': 'pack',
-        'ct': 'count',
-        'pcs': 'pieces',
+        "oz": "ounce",
+        "lb": "pound",
+        "kg": "kilogram",
+        "g": "gram",
+        "ml": "milliliter",
+        "l": "liter",
+        "pk": "pack",
+        "ct": "count",
+        "pcs": "pieces",
     }
-    
+
     for abbrev, full in abbreviations.items():
         # Replace abbreviations with full words
-        normalized = re.sub(rf'\b{abbrev}\b', full, normalized)
-    
+        normalized = re.sub(rf"\b{abbrev}\b", full, normalized)
+
     return normalized
 
 
@@ -138,15 +139,14 @@ def calculate_similarity(name1: str, name2: str) -> float:
     """
     tokens1 = set(tokenize_product_name(name1))
     tokens2 = set(tokenize_product_name(name2))
-    
+
     if not tokens1 or not tokens2:
         return 0.0
-    
+
     intersection = tokens1.intersection(tokens2)
     union = tokens1.union(tokens2)
-    
+
     if not union:
         return 0.0
-    
-    return len(intersection) / len(union)
 
+    return len(intersection) / len(union)

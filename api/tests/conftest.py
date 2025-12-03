@@ -52,6 +52,12 @@ def test_db():
     finally:
         db.close()
         Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+        # Clean up temp database file
+        import os
+
+        if os.path.exists(TEST_DB_FILE.name):
+            os.unlink(TEST_DB_FILE.name)
 
 
 @pytest.fixture(scope="function")
@@ -61,6 +67,7 @@ def test_client(test_db):
         try:
             yield test_db
         finally:
+            # Don't close the session here - test_db fixture handles cleanup
             pass
 
     app.dependency_overrides[get_db] = _override_get_db
@@ -114,5 +121,7 @@ def seed_test_data(test_db):
     for pr in prices:
         test_db.add(pr)
     test_db.commit()
+
+    return {"products": products, "supermarkets": supermarkets, "prices": prices}
 
     return {"products": products, "supermarkets": supermarkets, "prices": prices}

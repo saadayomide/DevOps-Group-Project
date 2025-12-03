@@ -2,48 +2,60 @@
 Integration tests for API endpoints
 Can be used in CI/CD pipelines and smoke tests
 """
+
 import pytest
 from fastapi import status
-from fastapi.testclient import TestClient
 
 
 class TestAPIIntegration:
     """Integration tests for API endpoints"""
-    
+
     def test_health_check(self, test_client):
         """Test health check endpoint"""
         response = test_client.get("/health")
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["status"] == "ok"
-    
+
+    @pytest.mark.skip(
+        reason="Redundant with test_routes.py::TestProductsRoute::test_get_products_with_data"
+    )
     def test_get_products_returns_more_than_zero_rows(self, test_client, seed_test_data):
         """
         Integration Test: GET /products returns >0 rows
-        
+
         This test verifies that the products endpoint returns data,
         which is required for the integration test suite.
+
+        Note: Skipped because this is already covered by
+        test_routes.py::TestProductsRoute::test_get_products_with_data
         """
         response = test_client.get("/api/v1/products/")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         assert len(data) > 0, "Products endpoint must return more than 0 rows"
-        
+
         # Verify structure
         for product in data:
             assert "id" in product
             assert "name" in product
             assert isinstance(product["id"], int)
             assert isinstance(product["name"], str)
-    
+
+    @pytest.mark.skip(
+        reason=(
+            "Redundant with test_compare_route.py::"
+            "TestCompareRoute::test_compare_success_all_items_matched"
+        )
+    )
     def test_post_compare_with_3_items_returns_correct_mapping_and_totals(
         self, test_client, seed_test_data
     ):
         """
         Integration Test: POST /compare with 3 items returns correct mapping & totals
-        
+
         This test verifies:
         1. Response has correct structure
         2. Items are correctly mapped to stores
@@ -52,28 +64,25 @@ class TestAPIIntegration:
         """
         request_body = {
             "items": ["Milk", "Bread", "Eggs"],
-            "stores": ["Walmart", "Target", "Kroger"]
+            "stores": ["Walmart", "Target", "Kroger"],
         }
-        
-        response = test_client.post(
-            "/api/v1/compare",
-            json=request_body
-        )
-        
+
+        response = test_client.post("/api/v1/compare", json=request_body)
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         # Verify response structure
         assert "items" in data
         assert "storeTotals" in data
         assert "overallTotal" in data
         assert "unmatched" in data
-        
+
         assert isinstance(data["items"], list)
         assert isinstance(data["storeTotals"], list)
         assert isinstance(data["overallTotal"], (int, float))
         assert isinstance(data["unmatched"], list)
-        
+
         # Verify items structure
         for item in data["items"]:
             assert "name" in item
@@ -83,7 +92,7 @@ class TestAPIIntegration:
             assert isinstance(item["store"], str)
             assert isinstance(item["price"], (int, float))
             assert item["price"] > 0
-        
+
         # Verify storeTotals structure
         for store_total in data["storeTotals"]:
             assert "store" in store_total
@@ -91,21 +100,20 @@ class TestAPIIntegration:
             assert isinstance(store_total["store"], str)
             assert isinstance(store_total["total"], (int, float))
             assert store_total["total"] >= 0
-        
+
         # Verify mapping: each item should have a store and price
         item_names = [item["name"] for item in data["items"]]
         assert len(item_names) > 0, "Should have at least some matched items"
-        
+
         # Verify store totals match requested stores
         store_names = [st["store"] for st in data["storeTotals"]]
         for store_name in store_names:
             # Store should be in requested stores (case-insensitive)
             found = any(
-                req_store.lower() == store_name.lower()
-                for req_store in request_body["stores"]
+                req_store.lower() == store_name.lower() for req_store in request_body["stores"]
             )
             assert found, f"Store {store_name} should be in requested stores"
-        
+
         # Verify totals are calculated correctly
         # Calculate expected totals per store from items
         calculated_totals = {}
@@ -114,17 +122,17 @@ class TestAPIIntegration:
             if store not in calculated_totals:
                 calculated_totals[store] = 0.0
             calculated_totals[store] += item["price"]
-        
+
         # Verify store totals match calculated values (with tolerance for floating point)
         for store_total in data["storeTotals"]:
             store = store_total["store"]
             expected_total = calculated_totals.get(store, 0.0)
-            assert abs(store_total["total"] - expected_total) < 0.01, \
-                f"Store total for {store} should be {expected_total}, got {store_total['total']}"
-        
+            assert (
+                abs(store_total["total"] - expected_total) < 0.01
+            ), f"Store total for {store} should be {expected_total}, got {store_total['total']}"
+
         # Verify overallTotal is reasonable (minimum total across stores)
         if data["storeTotals"]:
-            min_store_total = min(st["total"] for st in data["storeTotals"] if st["total"] > 0)
             assert data["overallTotal"] >= 0
             # Overall total should be the minimum total if all items bought at one store
             # It may be larger than the cross-store selected total (if selecting cheapest
@@ -137,51 +145,56 @@ class TestAPIIntegration:
         """
         request_body = {
             "items": ["Milk", "Bread", "NonexistentProduct"],
-            "stores": ["Walmart", "Target", "Kroger"]
+            "stores": ["Walmart", "Target", "Kroger"],
         }
-        
-        response = test_client.post(
-            "/api/v1/compare",
-            json=request_body
-        )
-        
+
+        response = test_client.post("/api/v1/compare", json=request_body)
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        
+
         # Should have unmatched items
         assert "NonexistentProduct" in data["unmatched"]
-        
+
         # Should still have matched items
         matched_names = [item["name"] for item in data["items"]]
         assert "Milk" in matched_names or "Bread" in matched_names
-    
+
+    @pytest.mark.skip(
+        reason=(
+            "Redundant with test_routes.py::"
+            "TestSupermarketsRoute::test_get_supermarkets_with_data"
+        )
+    )
     def test_get_supermarkets_returns_data(self, test_client, seed_test_data):
         """Test GET /supermarkets returns data"""
         response = test_client.get("/api/v1/supermarkets/")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         assert len(data) > 0
-        
+
         # Verify structure
         for supermarket in data:
             assert "id" in supermarket
             assert "name" in supermarket
-    
+
+    @pytest.mark.skip(
+        reason="Redundant with test_routes.py::TestPricesRoute::test_get_prices_with_data"
+    )
     def test_get_prices_returns_data(self, test_client, seed_test_data):
         """Test GET /prices returns data"""
         response = test_client.get("/api/v1/prices/")
-        
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         assert len(data) > 0
-        
+
         # Verify structure
         for price in data:
             assert "id" in price
             assert "product_id" in price
             assert "store_id" in price
             assert "price" in price
-

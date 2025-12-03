@@ -2,13 +2,14 @@
 Application configuration settings
 Reads SQL_CONNECTION_STRING and APP_ENV from environment variables
 """
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
-    
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,  # Allows case-insensitive env var matching
@@ -16,27 +17,27 @@ class Settings(BaseSettings):
         # Explicitly map environment variable names
         env_prefix="",
     )
-    
+
     # Application
     app_name: str = "FastAPI Product Comparison API"
     app_version: str = "0.1.0"
     # APP_ENV: development, staging, production
     # With case_sensitive=False, both APP_ENV and app_env work
     app_env: str = "development"
-    
+
     # Database - read from SQL_CONNECTION_STRING environment variable
     # With case_sensitive=False, both SQL_CONNECTION_STRING and sql_connection_string work
     sql_connection_string: str = "postgresql://postgres:postgres@localhost:5432/product_db"
-    
+
     # API
     api_prefix: str = "/api/v1"
     cors_origins: List[str] = ["*"]
-    
+
     # Security
     secret_key: str = "your-secret-key-change-in-production"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
-    
+
     @property
     def debug(self) -> bool:
         """Debug mode based on APP_ENV"""
@@ -44,4 +45,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-
