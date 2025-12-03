@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { compareBasket, fetchSupermarkets } from '../api'
 
 export default function ShoppingPage() {
@@ -68,12 +68,50 @@ export default function ShoppingPage() {
     }
   }, [items, selectedStores])
 
-  const cheapestStore =
-    results?.storeBreakdown &&
-    Object.entries(results.storeBreakdown).reduce(
-      (best, [store, data]) => (!best || data.total < best.total ? { store, ...data } : best),
-      null,
-    )
+  // Transform backend response (items, storeTotals) to storeBreakdown format for display
+  const storeBreakdown = useMemo(() => {
+    if (!results) return null
+
+    // Backend returns: { items: [{name, store, price}], storeTotals: [{store, total}], overallTotal, unmatched }
+    const breakdown = {}
+
+    // Initialize from storeTotals
+    if (results.storeTotals) {
+      for (const st of results.storeTotals) {
+        breakdown[st.store] = { items: {}, total: st.total }
+      }
+    }
+
+    // Add items to their stores
+    if (results.items) {
+      for (const item of results.items) {
+        if (!breakdown[item.store]) {
+          breakdown[item.store] = { items: {}, total: 0 }
+        }
+        breakdown[item.store].items[item.name] = item.price
+      }
+    }
+
+    return Object.keys(breakdown).length > 0 ? breakdown : null
+  }, [results])
+
+  // Find cheapest store from storeTotals
+  const cheapestStore = useMemo(() => {
+    if (!results?.storeTotals?.length) return null
+
+    const sorted = [...results.storeTotals]
+      .filter((st) => st.total > 0)
+      .sort((a, b) => a.total - b.total)
+
+    if (sorted.length === 0) return null
+
+    const best = sorted[0]
+    return {
+      store: best.store,
+      total: best.total,
+      items: storeBreakdown?.[best.store]?.items || {},
+    }
+  }, [results, storeBreakdown])
 
   return (
     <div className="shopping-page">
@@ -152,9 +190,16 @@ export default function ShoppingPage() {
             </div>
           )}
 
+          {/* Show unmatched items if any */}
+          {results.unmatched && results.unmatched.length > 0 && (
+            <div className="alert" style={{ background: 'rgba(210, 153, 34, 0.15)', color: '#d29922' }}>
+              <strong>Items not found:</strong> {results.unmatched.join(', ')}
+            </div>
+          )}
+
           <div className="results-grid">
-            {results.storeBreakdown &&
-              Object.entries(results.storeBreakdown).map(([store, data]) => (
+            {storeBreakdown &&
+              Object.entries(storeBreakdown).map(([store, data]) => (
                 <div
                   key={store}
                   className={`store-card ${store === cheapestStore?.store ? 'cheapest' : ''}`}
@@ -186,4 +231,3 @@ export default function ShoppingPage() {
     </div>
   )
 }
-
