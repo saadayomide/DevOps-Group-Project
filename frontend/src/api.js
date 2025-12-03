@@ -22,3 +22,29 @@ export function compareBasket(items, stores) {
     body: JSON.stringify({ items, stores }),
   })
 }
+
+// Search products for autocomplete
+export function searchProducts(query, limit = 10) {
+  if (!query || query.length < 2) return Promise.resolve([])
+  return request(`/products/?q=${encodeURIComponent(query)}&limit=${limit}`)
+}
+
+// Trigger price refresh (scrape)
+export function refreshPrices(queries = null) {
+  return request('/scraper/trigger', {
+    method: 'POST',
+    body: JSON.stringify(queries ? { queries } : {}),
+  })
+}
+
+// Check scraper status
+export function getScraperStatus() {
+  return request('/scraper/status')
+}
+
+// Search and scrape specific product
+export function scrapeProduct(query) {
+  return request(`/scraper/search/${encodeURIComponent(query)}`, {
+    method: 'POST',
+  })
+}

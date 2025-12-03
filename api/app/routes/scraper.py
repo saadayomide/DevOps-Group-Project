@@ -37,7 +37,7 @@ _scrape_in_progress = False
 
 
 @router.post("/trigger", response_model=ScrapeResponse)
-async def trigger_scrape(request: ScrapeRequest = None, db: Session = Depends(get_db)):
+async def trigger_scrape(request: Optional[ScrapeRequest] = None, db: Session = Depends(get_db)):
     """
     Trigger a price scrape from Mercadona.
 
@@ -94,7 +94,9 @@ async def _run_background_scrape(db: Session, queries: Optional[List[str]]):
 
 @router.post("/trigger-async", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_scrape_async(
-    background_tasks: BackgroundTasks, request: ScrapeRequest = None, db: Session = Depends(get_db)
+    background_tasks: BackgroundTasks,
+    request: Optional[ScrapeRequest] = None,
+    db: Session = Depends(get_db),
 ):
     """
     Trigger a background price scrape from Mercadona.

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { compareBasket, fetchSupermarkets } from '../api'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { compareBasket, fetchSupermarkets, searchProducts, refreshPrices, getScraperStatus } from '../api'
 
 export default function ShoppingPage() {
   const [supermarkets, setSupermarkets] = useState([])
@@ -11,6 +11,18 @@ export default function ShoppingPage() {
   const [results, setResults] = useState(null)
   const [error, setError] = useState('')
 
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1)
+  const inputRef = useRef(null)
+  const suggestionsRef = useRef(null)
+
+  // Refresh prices state
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastRefresh, setLastRefresh] = useState(null)
+
+  // Load supermarkets on mount
   useEffect(() => {
     let isMounted = true
     setLoading(true)
@@ -20,7 +32,6 @@ export default function ShoppingPage() {
       .then((list) => {
         if (!isMounted) return
         setSupermarkets(list || [])
-        // Auto-select first 3 stores if available
         if (list && list.length > 0) {
           setSelectedStores(list.slice(0, 3).map((s) => s.name))
         }
@@ -39,18 +50,60 @@ export default function ShoppingPage() {
     }
   }, [])
 
+  // Autocomplete: fetch suggestions when input changes
+  useEffect(() => {
+    const query = inputValue.trim()
+    if (query.length < 2) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const results = await searchProducts(query, 8)
+        setSuggestions(results || [])
+        setShowSuggestions(results && results.length > 0)
+        setSelectedSuggestionIndex(-1)
+      } catch (e) {
+        console.error('Failed to fetch suggestions:', e)
+        setSuggestions([])
+      }
+    }, 200) // Debounce
+
+    return () => clearTimeout(timeoutId)
+  }, [inputValue])
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(e.target) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target)
+      ) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const toggleStore = (name) => {
     setSelectedStores((prev) =>
       prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name],
     )
   }
 
-  const addItem = () => {
-    const val = inputValue.trim()
-    if (val && !items.includes(val)) {
+  const addItem = (itemName = null) => {
+    const val = (itemName || inputValue).trim()
+    if (val && !items.some((i) => i.toLowerCase() === val.toLowerCase())) {
       setItems((prev) => [...prev, val])
     }
     setInputValue('')
+    setShowSuggestions(false)
+    setSuggestions([])
   }
 
   const removeItem = (item) => {
@@ -58,9 +111,48 @@ export default function ShoppingPage() {
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedSuggestionIndex((prev) =>
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        )
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1))
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (selectedSuggestionIndex >= 0) {
+          addItem(suggestions[selectedSuggestionIndex].name)
+        } else {
+          addItem()
+        }
+      } else if (e.key === 'Escape') {
+        setShowSuggestions(false)
+      }
+    } else if (e.key === 'Enter') {
       e.preventDefault()
       addItem()
+    }
+  }
+
+  const handleSuggestionClick = (suggestion) => {
+    addItem(suggestion.name)
+  }
+
+  const handleRefreshPrices = async () => {
+    setRefreshing(true)
+    setError('')
+    try {
+      // Refresh prices for items in the list, or default items if empty
+      const queries = items.length > 0 ? items : null
+      await refreshPrices(queries)
+      setLastRefresh(new Date())
+    } catch (e) {
+      console.error('Failed to refresh prices:', e)
+      setError(`Price refresh failed: ${e.message}`)
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -85,21 +177,18 @@ export default function ShoppingPage() {
     }
   }, [items, selectedStores])
 
-  // Transform backend response (items, storeTotals) to storeBreakdown format for display
+  // Transform backend response to storeBreakdown format for display
   const storeBreakdown = useMemo(() => {
     if (!results) return null
 
-    // Backend returns: { items: [{name, store, price}], storeTotals: [{store, total}], overallTotal, unmatched }
     const breakdown = {}
 
-    // Initialize from storeTotals
     if (results.storeTotals) {
       for (const st of results.storeTotals) {
         breakdown[st.store] = { items: {}, total: st.total }
       }
     }
 
-    // Add items to their stores
     if (results.items) {
       for (const item of results.items) {
         if (!breakdown[item.store]) {
@@ -112,7 +201,7 @@ export default function ShoppingPage() {
     return Object.keys(breakdown).length > 0 ? breakdown : null
   }, [results])
 
-  // Find cheapest store from storeTotals
+  // Find cheapest store
   const cheapestStore = useMemo(() => {
     if (!results?.storeTotals?.length) return null
 
@@ -132,21 +221,73 @@ export default function ShoppingPage() {
 
   return (
     <div className="shopping-page">
+      {/* Refresh Banner */}
+      {refreshing && (
+        <div className="refresh-banner">
+          <div className="spinner"></div>
+          <span>Fetching latest prices from Mercadona...</span>
+        </div>
+      )}
+
       <section className="card shopping-input-card">
-        <h2>Shopping list</h2>
+        <div className="card-header">
+          <h2>Shopping list</h2>
+          <button
+            type="button"
+            className="btn refresh-btn"
+            onClick={handleRefreshPrices}
+            disabled={refreshing}
+            title="Fetch latest prices from supermarkets"
+          >
+            {refreshing ? (
+              <>
+                <span className="spinner-small"></span>
+                Refreshing...
+              </>
+            ) : (
+              <>🔄 Refresh Prices</>
+            )}
+          </button>
+        </div>
+
+        {lastRefresh && (
+          <div className="last-refresh">
+            ✓ Prices updated {lastRefresh.toLocaleTimeString()}
+          </div>
+        )}
+
         {error && <div className="alert error">{error}</div>}
 
-        <div className="input-row">
+        <div className="input-row autocomplete-container">
           <input
+            ref={inputRef}
             type="text"
-            placeholder="Enter product name (e.g. milk, bread, eggs)"
+            placeholder="Type to search products (e.g. leche, huevos, pan)"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+            autoComplete="off"
           />
-          <button type="button" className="btn primary" onClick={addItem}>
+          <button type="button" className="btn primary" onClick={() => addItem()}>
             Add
           </button>
+
+          {/* Autocomplete Dropdown */}
+          {showSuggestions && suggestions.length > 0 && (
+            <ul ref={suggestionsRef} className="suggestions-dropdown">
+              {suggestions.map((suggestion, index) => (
+                <li
+                  key={suggestion.id}
+                  className={`suggestion-item ${index === selectedSuggestionIndex ? 'selected' : ''}`}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  onMouseEnter={() => setSelectedSuggestionIndex(index)}
+                >
+                  {suggestion.name}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {items.length > 0 && (
@@ -166,7 +307,10 @@ export default function ShoppingPage() {
       <section className="card store-select-card">
         <h2>Select supermarkets</h2>
         {loading ? (
-          <div className="muted">Loading supermarkets...</div>
+          <div className="loading-state">
+            <div className="spinner"></div>
+            <span>Loading supermarkets...</span>
+          </div>
         ) : supermarkets.length > 0 ? (
           <div className="chip-group">
             {supermarkets.map((s) => (
@@ -182,10 +326,10 @@ export default function ShoppingPage() {
           </div>
         ) : (
           <div className="muted">
-            No supermarkets available. 
-            <button 
-              type="button" 
-              className="link-button" 
+            No supermarkets available.
+            <button
+              type="button"
+              className="link-button"
               onClick={() => window.location.reload()}
               style={{ marginLeft: '0.5rem' }}
             >
@@ -200,7 +344,14 @@ export default function ShoppingPage() {
           onClick={handleCompare}
           disabled={comparing || !items.length || !selectedStores.length}
         >
-          {comparing ? 'Comparing...' : 'Compare prices'}
+          {comparing ? (
+            <>
+              <span className="spinner-small"></span>
+              Comparing...
+            </>
+          ) : (
+            'Compare prices'
+          )}
         </button>
       </section>
 
@@ -218,10 +369,12 @@ export default function ShoppingPage() {
             </div>
           )}
 
-          {/* Show unmatched items if any */}
           {results.unmatched && results.unmatched.length > 0 && (
             <div className="alert" style={{ background: 'rgba(210, 153, 34, 0.15)', color: '#d29922' }}>
               <strong>Items not found:</strong> {results.unmatched.join(', ')}
+              <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                Try clicking "Refresh Prices" to search for these items online
+              </div>
             </div>
           )}
 
