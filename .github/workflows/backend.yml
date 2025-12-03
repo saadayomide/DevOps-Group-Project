@@ -9,13 +9,17 @@ on:
       - "api/**"
       - ".github/workflows/backend.yml"
 
+env:
+  ACR_REGISTRY: shopsmartacr.azurecr.io
+  IMAGE_NAME: shopsmart-backend
+
 jobs:
   build-test-and-publish-image:
     name: Build, Test, and Push Image
     runs-on: ubuntu-latest
 
     outputs:
-      image-tag: ${{ steps.meta.outputs.image-tag }}
+      image-tag: ${{ steps.meta.outputs.tag }}
 
     steps:
       - name: Checkout
@@ -31,7 +35,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-asyncio pytest-azurepipelines httpx
+          pip install pytest pytest-cov pytest-asyncio httpx
 
       - name: Run tests
         working-directory: ./api
@@ -48,16 +52,20 @@ jobs:
 
       - name: Log in to ACR
         run: |
-          echo "${{ secrets.AZURE_ACR_PASSWORD }}" | docker login shopsmartacr.azurecr.io -u "${{ secrets.AZURE_ACR_USERNAME }}" --password-stdin
+          echo "${{ secrets.AZURE_ACR_PASSWORD }}" | docker login ${{ env.ACR_REGISTRY }} -u "${{ secrets.AZURE_ACR_USERNAME }}" --password-stdin
 
-      - name: Build and push image to ACR
+      - name: Generate image tag
         id: meta
         run: |
-          IMAGE_TAG="shopsmartacr.azurecr.io/${{ secrets.BACKEND_IMAGE_NAME }}:${GITHUB_SHA}"
-          echo "image-tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          SHORT_SHA="${GITHUB_SHA::8}"
+          echo "tag=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "full-image=${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
-          docker build -t "$IMAGE_TAG" ./api
-          docker push "$IMAGE_TAG"
+      - name: Build and push image to ACR
+        run: |
+          FULL_IMAGE="${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
+          docker build -t "$FULL_IMAGE" ./api
+          docker push "$FULL_IMAGE"
 
   deploy-staging:
     name: Deploy to Staging
@@ -79,16 +87,16 @@ jobs:
         uses: azure/cli@v2
         with:
           inlineScript: |
-            IMAGE="${{ needs.build-test-and-publish-image.outputs.image-tag }}"
+            FULL_IMAGE="${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-test-and-publish-image.outputs.image-tag }}"
 
-            # Configure container
+            # Configure container with new CLI syntax
             az webapp config container set \
               --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
               --name "${{ secrets.AZURE_BACKEND_STAGING_APP_NAME }}" \
-              --docker-custom-image-name "$IMAGE" \
-              --docker-registry-server-url "https://shopsmartacr.azurecr.io" \
-              --docker-registry-server-user "${{ secrets.AZURE_ACR_USERNAME }}" \
-              --docker-registry-server-password "${{ secrets.AZURE_ACR_PASSWORD }}"
+              --container-image-name "$FULL_IMAGE" \
+              --container-registry-url "https://${{ env.ACR_REGISTRY }}" \
+              --container-registry-user "${{ secrets.AZURE_ACR_USERNAME }}" \
+              --container-registry-password "${{ secrets.AZURE_ACR_PASSWORD }}"
 
             # Set startup command
             az webapp config set \
@@ -131,16 +139,16 @@ jobs:
         uses: azure/cli@v2
         with:
           inlineScript: |
-            IMAGE="${{ needs.build-test-and-publish-image.outputs.image-tag }}"
+            FULL_IMAGE="${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-test-and-publish-image.outputs.image-tag }}"
 
-            # Configure container
+            # Configure container with new CLI syntax
             az webapp config container set \
               --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
               --name "${{ secrets.AZURE_BACKEND_PRODUCTION_APP_NAME }}" \
-              --docker-custom-image-name "$IMAGE" \
-              --docker-registry-server-url "https://shopsmartacr.azurecr.io" \
-              --docker-registry-server-user "${{ secrets.AZURE_ACR_USERNAME }}" \
-              --docker-registry-server-password "${{ secrets.AZURE_ACR_PASSWORD }}"
+              --container-image-name "$FULL_IMAGE" \
+              --container-registry-url "https://${{ env.ACR_REGISTRY }}" \
+              --container-registry-user "${{ secrets.AZURE_ACR_USERNAME }}" \
+              --container-registry-password "${{ secrets.AZURE_ACR_PASSWORD }}"
 
             # Set startup command
             az webapp config set \
