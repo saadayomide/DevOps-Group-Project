@@ -1,6 +1,5 @@
 import asyncio
 import re
-import unicodedata
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from urllib.parse import quote_plus
@@ -20,17 +19,6 @@ class SearchResult:
 
 
 # ------------------ Helpers ------------------ #
-
-def normalize(text: str) -> str:
-    """
-    Lowercase + remove accents (jabón -> jabon).
-    """
-    if not text:
-        return ""
-    text = text.lower()
-    nfkd = unicodedata.normalize("NFKD", text)
-    return "".join(ch for ch in nfkd if not unicodedata.combining(ch))
-
 
 def parse_price(text: str) -> Optional[float]:
     """
@@ -57,7 +45,7 @@ def extract_name_from_text(full_text: str) -> Optional[str]:
     Heuristic to guess a product name from all the text inside a card:
     - Split into lines
     - Remove empty / very short lines
-    - Prefer lines without '€', 'añadir', 'oferta', etc.
+    - Prefer lines without '€' or 'añadir'
     - Return the longest such line
     """
     if not full_text:
@@ -70,11 +58,11 @@ def extract_name_from_text(full_text: str) -> Optional[str]:
         low = ln.lower()
         if "€" in low:
             return False
-        if "añadir" in low or "agregar" in low or "añade" in low:
+        if "añadir" in low:
             return False
-        if "oferta" in low or "promo" in low:
+        if "€/kilo" in low or "€/litro" in low:
             return False
-        if "€/kg" in low or "€/kilo" in low or "€/l" in low or "€/litro" in low:
+        if "oferta" in low:
             return False
         return True
 
@@ -93,17 +81,8 @@ async def accept_cookies_if_any(page: Page) -> None:
     Try a few common ways to accept cookie popups.
     We ignore failures.
     """
-    # 1) Try by role + common Spanish labels
-    for label in [
-        "Aceptar",
-        "Aceptar todo",
-        "Aceptar todas",
-        "Acepto",
-        "Aceptar y continuar",
-        "Aceptar todas las cookies",
-        "Aceptar cookies",
-        "Continuar",
-    ]:
+    # 1) Try by role + name
+    for label in ["Aceptar", "Aceptar todo", "Aceptar todas", "Acepto"]:
         try:
             btn = page.get_by_role("button", name=label)
             await btn.click(timeout=2000)
@@ -111,12 +90,12 @@ async def accept_cookies_if_any(page: Page) -> None:
         except Exception:
             pass
 
-    # 2) Try generic <button> text contains 'acept' or 'continuar'
+    # 2) Try generic button containing 'Acept'
     try:
         buttons = await page.query_selector_all("button")
         for b in buttons:
             txt = (await b.inner_text()).strip().lower()
-            if "acept" in txt or "continuar" in txt:
+            if "acept" in txt:
                 try:
                     await b.click(timeout=2000)
                     return
@@ -126,72 +105,55 @@ async def accept_cookies_if_any(page: Page) -> None:
         pass
 
 
-def passes_token_filter(name: str, query: str) -> bool:
+# ------------------ DIA scraper ------------------ #
+
+async def search_cheapest_dia(query: str) -> Tuple[Optional[SearchResult], List[SearchResult]]:
     """
-    Accent-insensitive, soft matching:
-    - Normalize both name and query (remove accents, lowercase)
-    - Split query into 'tokens' of len >= 3 (ignore 'de', 'y', etc.)
-    - If there are 1–2 tokens: require at least 1 match
-      (e.g. 'jabon de manos' → tokens ['jabon','manos'] → 'jabón de mano' still passes)
-    - If 3+ tokens: require at least 2 matches
+    Search DIA online for a query using:
+        https://www.dia.es/search?q=<query>
+    Scrape product cards generically and return
+        (cheapest_relevant_result, all_relevant_results_sorted_by_price).
+
+    Relevance = product name contains all “important” words from the query
+    (words of length >= 3), e.g. 'leche' and 'entera'.
     """
-    name_norm = normalize(name)
-    tokens = [t for t in re.split(r"\s+", normalize(query).strip()) if len(t) >= 3]
+    # preprocess query tokens once
+    tokens = [w for w in re.split(r"\s+", query.lower().strip()) if len(w) >= 3]
 
-    if not tokens:
-        return True  # nothing to filter on
-
-    matches = sum(1 for t in tokens if t in name_norm)
-
-    if len(tokens) <= 2:
-        return matches >= 1
-    else:
-        return matches >= 2
-
-
-# ------------------ Alcampo scraper ------------------ #
-
-async def search_cheapest_alcampo(query: str) -> Tuple[Optional[SearchResult], List[SearchResult]]:
-    """
-    Search Alcampo online for a query using:
-        https://www.compraonline.alcampo.es/search?q=<query>
-
-    Scrape product cards generically and return:
-        (cheapest_relevant_result, all_relevant_results_sorted_by_price)
-
-    Relevance = passes_token_filter(name, query).
-    """
     async with async_playwright() as p:
-        # headless=False so you can see; set True when stable
+        # headless=False so you can see what's going on; set to True later
         browser = await p.chromium.launch(headless=False)
         page: Page = await browser.new_page()
 
-        # 1) Build search URL
-        search_url = f"https://www.compraonline.alcampo.es/search?q={quote_plus(query)}"
+        # 1) Build search URL (this is the one you sent)
+        search_url = f"https://www.dia.es/search?q={quote_plus(query)}"
         print(f"[DEBUG] Opening {search_url}")
         await page.goto(search_url, wait_until="domcontentloaded")
 
         # 2) Cookies
         await accept_cookies_if_any(page)
 
-        # 3) Wait a bit for results to fully render
-        await page.wait_for_timeout(5000)
+        # 3) Wait a bit for results
+        await page.wait_for_timeout(4000)
 
         # 4) Grab candidate product containers
+        #    Start with <article> (common pattern for product cards)
         cards = []
         try:
             cards = await page.query_selector_all("article")
         except Exception:
             pass
 
+        # Add some extra candidates by class name heuristic
         extra_cards = []
         try:
             extra_cards = await page.query_selector_all(
-                "div[class*='product'], li[class*='product'], section[class*='product']"
+                "div[class*='product'], li[class*='product']"
             )
         except Exception:
             pass
 
+        # Combine & dedupe
         card_set = {id(c): c for c in cards + extra_cards}
         cards = list(card_set.values())
 
@@ -209,24 +171,28 @@ async def search_cheapest_alcampo(query: str) -> Tuple[Optional[SearchResult], L
             if not full_text:
                 continue
 
-            # get price
+            # Try to extract a price
             price = parse_price(full_text)
             if price is None:
                 continue
 
-            # get name
+            # Try to extract a name
             name = extract_name_from_text(full_text)
             if not name:
                 continue
 
-            # -------- RELEVANCE FILTER -------- #
-            if not passes_token_filter(name, query):
-                continue
-            # ---------------------------------- #
+            name_low = name.lower()
 
-            # require a product link
+            # ----------------- RELEVANCE FILTERS ----------------- #
+            # 1) Require that name contains all query tokens
+            if tokens and not all(t in name_low for t in tokens):
+                # not relevant to the search (e.g. candy when searching 'leche entera')
+                continue
+
+            # 2) Require a product link → skip nested elements like 'Añadir'
             href = None
             try:
+                # look for <a> inside the card
                 link_el = await card.query_selector("a")
                 if link_el:
                     href = await link_el.get_attribute("href")
@@ -237,10 +203,11 @@ async def search_cheapest_alcampo(query: str) -> Tuple[Optional[SearchResult], L
 
             if href:
                 if href.startswith("/"):
-                    href = "https://www.compraonline.alcampo.es" + href
+                    href = "https://www.dia.es" + href
             else:
-                # No usable link → probably not a product card
+                # no real product link → treat as non-product (e.g. just an "Añadir" button)
                 continue
+            # ----------------------------------------------------- #
 
             results.append(
                 SearchResult(
@@ -264,23 +231,20 @@ async def search_cheapest_alcampo(query: str) -> Tuple[Optional[SearchResult], L
 # ------------------ Test entrypoint ------------------ #
 
 async def main():
-    # Try different queries here:
-    # query = "leche entera"
-    # query = "jabon de manos"
-    query = ("pechuga de pollo")
+    query = "huevos"  # change to test different searches
 
-    cheapest, all_results = await search_cheapest_alcampo(query)
+    cheapest, all_results = await search_cheapest_dia(query)
 
     if not all_results:
         print(f"No relevant products found for query: {query!r}")
         return
 
     print(f"\nFound {len(all_results)} relevant products for {query!r}.\n")
-    print("Top 10 cheapest (Alcampo):\n")
+    print("Top 10 cheapest:\n")
     for r in all_results[:10]:
         print(f"- {r.price:.2f} € | {r.name} | {r.url or 'no url'}")
 
-    print("\nCheapest option (Alcampo):")
+    print("\nCheapest option:")
     print(f"=> {cheapest.price:.2f} € | {cheapest.name}")
     if cheapest.url:
         print(f"   {cheapest.url}")

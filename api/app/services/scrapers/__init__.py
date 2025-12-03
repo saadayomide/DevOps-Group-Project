@@ -16,6 +16,6 @@ that returns a common shape:
 ]
 """
 
-from . import mercadona, carrefour, alcampo  # noqa: F401
+from . import dia, mercadona, alcampo  # noqa: F401
 
-__all__ = ["mercadona", "carrefour", "alcampo"]
+__all__ = ["mercadona", "dia", "alcampo"]
