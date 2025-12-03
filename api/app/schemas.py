@@ -197,3 +197,19 @@ class ShoppingListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Catalog schemas
+class CategorySummary(BaseModel):
+    """Lightweight category representation"""
+    code: str
+    label: str
+
+
+class CategoryDetail(BaseModel):
+    """Detailed category representation"""
+    code: str
+    label: str
+    units: List[str]
+    variants: List[str]
+    brands: List[str]
