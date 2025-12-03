@@ -2,7 +2,18 @@
 SQLAlchemy database models
 Aligned to Team A's schema
 """
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Index, Numeric
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    func,
+    JSON,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import relationship
 from app.db import Base
 
@@ -47,4 +58,43 @@ class Price(Base):
     __table_args__ = (
         Index('idx_price_product_store', 'product_id', 'store_id'),
     )
+
+
+class ShoppingList(Base):
+    """Shopping list header"""
+    __tablename__ = "shopping_lists"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_refreshed = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    items = relationship(
+        "ShoppingListItem",
+        back_populates="list",
+        cascade="all, delete-orphan",
+    )
+
+
+class ShoppingListItem(Base):
+    """Shopping list items"""
+    __tablename__ = "shopping_list_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    list_id = Column(Integer, ForeignKey("shopping_lists.id", ondelete="CASCADE"), nullable=False)
+
+    category = Column(String, nullable=False)
+    brand = Column(String, nullable=True)
+    variants = Column(ARRAY(String).with_variant(JSON, "sqlite"), nullable=True)
+    quantity = Column(Numeric(10, 3), nullable=False)
+    unit = Column(String, nullable=False)
+
+    spec_json = Column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
+
+    best_store = Column(String, nullable=True)
+    best_price = Column(Numeric(10, 2), nullable=True)
+    best_url = Column(String, nullable=True)
+    comparison_json = Column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
+
+    list = relationship("ShoppingList", back_populates="items")
 

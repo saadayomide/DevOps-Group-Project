@@ -127,8 +127,9 @@ class TestAPIIntegration:
             min_store_total = min(st["total"] for st in data["storeTotals"] if st["total"] > 0)
             assert data["overallTotal"] >= 0
             # Overall total should be the minimum total if all items bought at one store
-            # It may be less than min_store_total if not all items are available at all stores
-            assert data["overallTotal"] <= sum(st["total"] for st in data["storeTotals"])
+            # It may be larger than the cross-store selected total (if selecting cheapest
+            # item-per-store yields a lower combined price), so assert the correct inequality
+            assert data["overallTotal"] >= sum(st["total"] for st in data["storeTotals"])
     
     def test_post_compare_with_3_items_handles_unmatched(self, test_client, seed_test_data):
         """

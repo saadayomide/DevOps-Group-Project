@@ -1,38 +1,23 @@
 """
 Health check endpoints
 """
-from fastapi import APIRouter
-from datetime import datetime
-from app.db import SessionLocal
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.db import get_db
 
 router = APIRouter()
 
 
 @router.get("/health")
-async def health_check():
-    """Basic health check endpoint - used by smoke tests"""
+async def health():
+    """Basic health check endpoint - canonical response: {"status": "ok"}"""
     return {"status": "ok"}
 
 
 @router.get("/health/db")
-async def database_health_check():
-    """Database health check endpoint"""
-    try:
-        from sqlalchemy import text
-        db = SessionLocal()
-        # Try to execute a simple query
-        result = db.execute(text("SELECT 1"))
-        db.close()
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "database": "disconnected",
-            "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+async def health_db(db: Session = Depends(get_db)):
+    """Database health check endpoint that runs a simple query"""
+    # Use a simple SELECT to assert DB connectivity
+    db.execute("SELECT 1")
+    return {"status": "ok"}
 

@@ -3,7 +3,7 @@ Pydantic schemas for request/response validation
 Aligned to Team A's schema
 """
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 from datetime import datetime
 
 
@@ -152,3 +152,48 @@ class ComparisonResult(BaseModel):
     results: List[ProductComparison]
     cheapest: Optional[ProductComparison] = None
     most_expensive: Optional[ProductComparison] = None
+
+
+# Shopping list schemas
+class ShoppingListItemCreate(BaseModel):
+    """Schema for creating a shopping list item"""
+    category: str
+    brand: Optional[str] = None
+    variants: List[str] = Field(default_factory=list)
+    quantity: float
+    unit: str
+
+
+class ShoppingListCreateRequest(BaseModel):
+    """Schema for creating a shopping list with items"""
+    name: str
+    items: List[ShoppingListItemCreate]
+
+
+class ShoppingListItemResponse(BaseModel):
+    """Schema for shopping list item response"""
+    id: int
+    category: str
+    brand: Optional[str]
+    variants: List[str]
+    quantity: float
+    unit: str
+    best_store: Optional[str]
+    best_price: Optional[float]
+    best_url: Optional[str]
+    comparison: Dict[str, Any] = Field(default_factory=dict)
+
+    class Config:
+        from_attributes = True
+
+
+class ShoppingListResponse(BaseModel):
+    """Schema for shopping list response"""
+    id: int
+    name: str
+    created_at: datetime
+    last_refreshed: datetime
+    items: List[ShoppingListItemResponse]
+
+    class Config:
+        from_attributes = True
