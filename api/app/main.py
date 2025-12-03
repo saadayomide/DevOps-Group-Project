@@ -19,22 +19,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Database migrations are managed via Alembic
-# Run migrations with: alembic upgrade head
-# In production, migrations are the source of truth (no manual table creation)
-# Skip table creation in test environment
-if settings.app_env != "test":
-    # Note: In production, use Alembic migrations instead of create_all
-    # This is kept for backward compatibility in development
-    # For production deployments, ensure migrations are run via CI/CD or startup script
+# In production: migrations are run by start.sh before the app starts
+# In development: run `alembic upgrade head` manually or use start.sh
+# In tests: tables are created by conftest.py using create_all()
+if settings.app_env == "development":
+    # In development, optionally create tables if migrations haven't been run
+    # This is a fallback for local development convenience
     try:
-        from alembic.config import Config
-        from alembic import command
-
-        alembic_cfg = Config("alembic.ini")
-        command.upgrade(alembic_cfg, "head")
-    except Exception as e:
-        logger.warning(f"Could not run Alembic migrations: {e}. Falling back to create_all.")
         Base.metadata.create_all(bind=engine)
+        logger.info("Database tables ensured (development mode)")
+    except Exception as e:
+        logger.warning(f"Could not create tables: {e}")
 
 # Initialize FastAPI app
 # OpenAPI is automatically enabled by FastAPI (available at /docs, /redoc, /openapi.json)

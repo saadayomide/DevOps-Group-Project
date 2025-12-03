@@ -18,12 +18,15 @@ COPY app ./app
 COPY alembic.ini .
 COPY alembic ./alembic
 
+# Copy startup script
+COPY start.sh .
+RUN chmod +x start.sh
+
 # Expose FastAPI port
 EXPOSE 8000
 
 # Environment
 ENV PYTHONUNBUFFERED=1
-ENV UVICORN_WORKERS=4
 
-# Start FastAPI with Uvicorn
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start using the startup script which handles migrations
+CMD ["./start.sh"]

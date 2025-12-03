@@ -39,10 +39,19 @@ class Settings(BaseSettings):
     def allowed_cors_origins(self) -> List[str]:
         """Get CORS origins from environment variable or default"""
         import os
+        import json
 
         cors_env = os.getenv("CORS_ORIGINS", "")
         if cors_env:
-            # Split comma-separated values and strip whitespace
+            # Try to parse as JSON array first (e.g., '["url1", "url2"]')
+            if cors_env.strip().startswith("["):
+                try:
+                    origins = json.loads(cors_env)
+                    if isinstance(origins, list):
+                        return [str(o).strip() for o in origins if o]
+                except json.JSONDecodeError:
+                    pass
+            # Fall back to comma-separated values
             return [origin.strip() for origin in cors_env.split(",") if origin.strip()]
         # Default: allow all origins in development
         return ["*"]
