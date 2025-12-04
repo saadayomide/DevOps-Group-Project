@@ -17,7 +17,7 @@ export function fetchSupermarkets() {
 }
 
 export function compareBasket(items, stores) {
-  return request('/compare', {
+  return request('/compare/', {
     method: 'POST',
     body: JSON.stringify({ items, stores }),
   })
@@ -31,7 +31,7 @@ export function searchProducts(query, limit = 10) {
 
 // Trigger price refresh (scrape)
 export function refreshPrices(queries = null) {
-  return request('/scraper/trigger', {
+  return request('/scraper/trigger/', {
     method: 'POST',
     body: JSON.stringify(queries ? { queries } : {}),
   })
@@ -39,12 +39,12 @@ export function refreshPrices(queries = null) {
 
 // Check scraper status
 export function getScraperStatus() {
-  return request('/scraper/status')
+  return request('/scraper/status/')
 }
 
 // Search and scrape specific product
 export function scrapeProduct(query) {
-  return request(`/scraper/search/${encodeURIComponent(query)}`, {
+  return request(`/scraper/search/${encodeURIComponent(query)}/`, {
     method: 'POST',
   })
 }
