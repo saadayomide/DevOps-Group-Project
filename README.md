@@ -1,45 +1,233 @@
-ShopSmart — TeamC (Sprint 1)
+# ShopSmart — Price Comparison App
 
-Quick start (local):
-1. Copy .env.example -> .env and set APPINSIGHTS_INSTRUMENTATIONKEY
-2. Install deps: python -m pip install -r requirements.txt
-3. Run: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+A full-stack price comparison application that helps users find the best prices across supermarkets.
 
-CI/CD:
-- azure_pipelines.yml is configured to Build → Lint → Test → Publish → Deploy (staging)
-- setup-azure.sh will create Resource Group, App Service plan, Web App, Application Insights and Key Vault, and will wire Key Vault secret to the Web App.
+## Features
 
-Monitoring:
-- App Insights needs an instrumentation key (or set via Key Vault). Telemetry is initialized at startup when APPINSIGHTS_INSTRUMENTATIONKEY is present.
+- **Shopping List Management**: Add items to your shopping list with autocomplete
+- **Multi-Store Comparison**: Compare prices across multiple supermarkets
+- **Best Price Finder**: Automatically identifies the cheapest store for your basket
+- **Persistent State**: Shopping list persists across page navigation and browser sessions
+- **User Authentication**: Sign up and login functionality
+- **Responsive Design**: Works on desktop and mobile devices
 
-See docs/deployment_guide.md for more details.s
+## Architecture
 
-## TeamB2 branch (what was added)
-This branch adds a minimal /api router and basic integration endpoints used by tests:
-- New file: api.py — exposes /api/supermarkets, /api/products, /api/prices, /api/compare
-- Tests: basic smoke tests under tests/ (and any integration tests already present)
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│    Frontend     │────▶│    Backend      │────▶│   PostgreSQL    │
+│  (React/Vite)   │     │   (FastAPI)     │     │   (Azure)       │
+│  Nginx + Azure  │     │  Azure App Svc  │     │  Flexible Srv   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
 
-Quick local steps
-1. Switch to branch:
-   git fetch origin
-   git switch teamB2 || git switch -c teamB2 --track origin/teamB2
+## Tech Stack
 
-2. Create & activate venv (macOS):
-   python3 -m venv .venv
-   source .venv/bin/activate
+### Frontend
+- React 18 with Vite
+- React Router for navigation
+- CSS (custom styling)
+- Nginx (production)
 
-3. Install deps:
-   python -m pip install --upgrade pip
-   pip install -r requirements.txt
+### Backend
+- FastAPI (Python 3.11)
+- SQLAlchemy ORM
+- Alembic migrations
+- PostgreSQL database
 
-4. Run app:
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+### DevOps
+- GitHub Actions CI/CD
+- Azure Container Registry (ACR)
+- Azure App Service (containers)
+- Docker containerization
 
-5. Run tests:
-   python -m pytest -q
-   # or run just the smoke tests:
-   python -m pytest tests/test_api_basic.py -q
+## Quick Start (Local Development)
 
-Notes
-- Ensure APPINSIGHTS_INSTRUMENTATIONKEY is set in .env if you want telemetry initialized.
-- If you need a tiny extra commit, update README or .gitignore and commit/push as shown below.
+### Prerequisites
+- Python 3.11+
+- Node.js 18+
+- PostgreSQL (or use SQLite for development)
+
+### Backend Setup
+
+```bash
+cd api
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variables
+export DATABASE_URL="sqlite:///./test.db"  # Or your PostgreSQL URL
+export CORS_ORIGINS="http://localhost:5173"
+
+# Run migrations
+alembic upgrade head
+
+# Start server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Frontend Setup
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Set API URL (optional - defaults to /api/v1)
+export VITE_API_BASE="http://localhost:8000/api/v1"
+
+# Start development server
+npm run dev
+```
+
+Visit `http://localhost:5173` to use the app.
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/api/v1/supermarkets/` | List all supermarkets |
+| GET | `/api/v1/products/?q=<query>` | Search products |
+| POST | `/api/v1/compare/` | Compare prices across stores |
+
+### Compare Request Example
+
+```json
+POST /api/v1/compare/
+{
+  "items": ["Leche entera", "Huevos"],
+  "stores": ["Mercadona", "Carrefour", "Lidl"]
+}
+```
+
+## Deployment
+
+The application is deployed to Azure using GitHub Actions:
+
+- **Staging**: Deploys on push to `teamC2` branch
+- **Production**: Deploys on push to `main` branch
+
+### Deployed URLs
+
+- Frontend Staging: `https://shopsmart-frontend-staging.azurewebsites.net`
+- Frontend Production: `https://shopsmart-frontend-production.azurewebsites.net`
+- Backend Staging: `https://shopsmart-backend-staging.azurewebsites.net`
+- Backend Production: `https://shopsmart-backend-production.azurewebsites.net`
+
+### CI/CD Pipeline
+
+```
+Push to teamC2/main
+       │
+       ▼
+┌─────────────────┐
+│  Run Tests      │
+│  (pytest)       │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Build Docker   │
+│  Image          │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Push to ACR    │
+│                 │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Deploy to      │
+│  App Service    │
+└─────────────────┘
+```
+
+## Project Structure
+
+```
+.
+├── api/                    # Backend (FastAPI)
+│   ├── app/
+│   │   ├── main.py        # Application entry point
+│   │   ├── routes/        # API route handlers
+│   │   ├── services/      # Business logic
+│   │   ├── models.py      # SQLAlchemy models
+│   │   └── schemas.py     # Pydantic schemas
+│   ├── alembic/           # Database migrations
+│   ├── tests/             # Backend tests
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── frontend/              # Frontend (React/Vite)
+│   ├── src/
+│   │   ├── pages/         # Page components
+│   │   ├── context/       # React contexts
+│   │   ├── api.js         # API client
+│   │   └── App.jsx        # Main app component
+│   ├── Dockerfile
+│   └── package.json
+│
+├── .github/workflows/     # CI/CD pipelines
+│   ├── backend.yml
+│   └── frontend.yml
+│
+└── docs/                  # Documentation
+    └── DEVOPS_GUIDE.md    # Detailed DevOps setup
+```
+
+## Testing
+
+### Backend Tests
+
+```bash
+cd api
+pytest tests/ -v --cov=app
+```
+
+### Frontend Tests
+
+```bash
+cd frontend
+npm test
+```
+
+## Environment Variables
+
+### Backend
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host/db` |
+| `CORS_ORIGINS` | Allowed CORS origins | `https://frontend.com,http://localhost:5173` |
+
+### Frontend
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `VITE_API_BASE` | Backend API URL | `https://api.shopsmart.com/api/v1` |
+
+## Contributing
+
+1. Create a feature branch from `teamC2`
+2. Make your changes
+3. Run tests locally
+4. Create a pull request
+
+## Documentation
+
+- [DevOps Guide](docs/DEVOPS_GUIDE.md) - CI/CD and infrastructure setup
+- [API Testing](api/docs/TESTING.md) - Backend testing guide
+- [Architecture](api/docs/ARCHITECTURE.md) - System architecture details
+
+## License
+
+This project is part of a university DevOps course assignment.

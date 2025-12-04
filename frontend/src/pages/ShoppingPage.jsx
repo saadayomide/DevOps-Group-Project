@@ -1,14 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { compareBasket, fetchSupermarkets, searchProducts } from '../api'
+import { useShopping } from '../context/ShoppingContext'
 
 export default function ShoppingPage() {
+  const {
+    items,
+    selectedStores,
+    results,
+    addItem: addItemToContext,
+    removeItem: removeItemFromContext,
+    toggleStore: toggleStoreInContext,
+    setStores,
+    setResults,
+  } = useShopping()
+
   const [supermarkets, setSupermarkets] = useState([])
-  const [selectedStores, setSelectedStores] = useState([])
-  const [items, setItems] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [loading, setLoading] = useState(false)
   const [comparing, setComparing] = useState(false)
-  const [results, setResults] = useState(null)
   const [error, setError] = useState('')
 
   // Autocomplete state
@@ -28,8 +37,9 @@ export default function ShoppingPage() {
       .then((list) => {
         if (!isMounted) return
         setSupermarkets(list || [])
-        if (list && list.length > 0) {
-          setSelectedStores(list.slice(0, 3).map((s) => s.name))
+        // Only set default stores if none are selected yet
+        if (selectedStores.length === 0 && list && list.length > 0) {
+          setStores(list.slice(0, 3).map((s) => s.name))
         }
       })
       .catch((e) => {
@@ -44,7 +54,7 @@ export default function ShoppingPage() {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [selectedStores.length, setStores])
 
   // Autocomplete: fetch suggestions when input changes
   useEffect(() => {
@@ -86,24 +96,14 @@ export default function ShoppingPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const toggleStore = (name) => {
-    setSelectedStores((prev) =>
-      prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name],
-    )
-  }
-
   const addItem = (itemName = null) => {
     const val = (itemName || inputValue).trim()
-    if (val && !items.some((i) => i.toLowerCase() === val.toLowerCase())) {
-      setItems((prev) => [...prev, val])
+    if (val) {
+      addItemToContext(val)
     }
     setInputValue('')
     setShowSuggestions(false)
     setSuggestions([])
-  }
-
-  const removeItem = (item) => {
-    setItems((prev) => prev.filter((i) => i !== item))
   }
 
   const handleKeyDown = (e) => {
@@ -155,7 +155,7 @@ export default function ShoppingPage() {
     } finally {
       setComparing(false)
     }
-  }, [items, selectedStores])
+  }, [items, selectedStores, setResults])
 
   // Transform backend response to storeBreakdown format for display
   // Shows ALL prices for ALL items at each store (not just optimal basket)
@@ -178,7 +178,9 @@ export default function ShoppingPage() {
               breakdown[storePrice.store] = { items: {}, total: 0 }
             }
             breakdown[storePrice.store].items[item.name] = storePrice.price
-            breakdown[storePrice.store].total += storePrice.price
+            if (storePrice.price != null) {
+              breakdown[storePrice.store].total += storePrice.price
+            }
           }
         })
       })
@@ -268,7 +270,7 @@ export default function ShoppingPage() {
             {items.map((item) => (
               <li key={item} className="item-chip">
                 {item}
-                <button type="button" className="remove-btn" onClick={() => removeItem(item)}>
+                <button type="button" className="remove-btn" onClick={() => removeItemFromContext(item)}>
                   ×
                 </button>
               </li>
@@ -285,28 +287,18 @@ export default function ShoppingPage() {
             <span>Loading supermarkets...</span>
           </div>
         ) : supermarkets.length > 0 ? (
-          <>
-            <div className="chip-group">
-              {supermarkets.map((s) => {
-                const isLive = s.name === 'Mercadona' // Only Mercadona has live scraping
-                return (
-                  <button
-                    key={s.id ?? s.name}
-                    type="button"
-                    className={selectedStores.includes(s.name) ? 'chip active' : 'chip'}
-                    onClick={() => toggleStore(s.name)}
-                    title={isLive ? 'Live prices (scraped)' : 'Static prices (seed data)'}
-                  >
-                    {s.name}
-                    {isLive && <span className="live-badge">🟢</span>}
-                  </button>
-                )
-              })}
-            </div>
-            <div className="muted" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
-              🟢 = Live prices (scraped) | Others = Static prices (seed data)
-            </div>
-          </>
+          <div className="chip-group">
+            {supermarkets.map((s) => (
+              <button
+                key={s.id ?? s.name}
+                type="button"
+                className={selectedStores.includes(s.name) ? 'chip active' : 'chip'}
+                onClick={() => toggleStoreInContext(s.name)}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
         ) : (
           <div className="muted">
             No supermarkets available.
@@ -370,14 +362,6 @@ export default function ShoppingPage() {
             <div className="results-grid">
               {storeBreakdown &&
                 Object.entries(storeBreakdown).map(([store, data]) => {
-                  // Find cheapest price for each item across all stores
-                  const cheapestPrices = {}
-                  if (results.priceComparison) {
-                    results.priceComparison.forEach((item) => {
-                      cheapestPrices[item.name] = item.cheapestPrice
-                    })
-                  }
-
                   return (
                     <div
                       key={store}

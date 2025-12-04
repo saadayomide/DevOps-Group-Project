@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { fetchSupermarkets } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { useShopping } from '../context/ShoppingContext'
 
 function Avatar({ name = '' }) {
   const initials = name
@@ -15,11 +16,10 @@ function Avatar({ name = '' }) {
 
 export default function ProfilePage() {
   const { user } = useAuth()
+  const { selectedStores, setStores, clearItems } = useShopping()
+
   const [supermarkets, setSupermarkets] = useState([])
-  const [selectedDefaults, setSelectedDefaults] = useState([])
-  const [currency, setCurrency] = useState('EUR')
-  const [showPercent, setShowPercent] = useState(true)
-  const [highlightCheapest, setHighlightCheapest] = useState(true)
+  const [tempSelectedStores, setTempSelectedStores] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
@@ -28,23 +28,34 @@ export default function ProfilePage() {
     setLoading(true)
     fetchSupermarkets()
       .then((list) => {
-        setSupermarkets(list)
-        setSelectedDefaults(list.slice(0, 2).map((s) => s.name))
+        setSupermarkets(list || [])
+        // Initialize temp selection from context
+        setTempSelectedStores(selectedStores.length > 0 ? selectedStores : (list || []).slice(0, 2).map((s) => s.name))
       })
       .catch((e) => setError(`Failed to load supermarkets: ${e.message}`))
       .finally(() => setLoading(false))
-  }, [])
+  }, [selectedStores])
 
   const toggleDefault = (name) => {
-    setSelectedDefaults((prev) =>
+    setTempSelectedStores((prev) =>
       prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name],
     )
   }
 
   const handleSave = (e) => {
     e.preventDefault()
+    // Save to context (which persists to localStorage)
+    setStores(tempSelectedStores)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleClearShoppingList = () => {
+    if (window.confirm('Are you sure you want to clear your shopping list?')) {
+      clearItems()
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }
   }
 
   return (
@@ -73,12 +84,15 @@ export default function ProfilePage() {
           <form className="form" onSubmit={handleSave}>
             <div className="field">
               <span>Default supermarkets</span>
+              <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
+                Select which supermarkets to compare by default
+              </p>
               <div className="chip-group">
                 {supermarkets.map((s) => (
                   <button
                     key={s.id ?? s.name}
                     type="button"
-                    className={selectedDefaults.includes(s.name) ? 'chip active' : 'chip'}
+                    className={tempSelectedStores.includes(s.name) ? 'chip active' : 'chip'}
                     onClick={() => toggleDefault(s.name)}
                   >
                     {s.name}
@@ -89,42 +103,24 @@ export default function ProfilePage() {
             </div>
 
             <div className="field">
-              <span>Default currency</span>
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                <option>EUR</option>
-                <option>USD</option>
-                <option>GBP</option>
-              </select>
+              <span>Shopping list</span>
+              <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
+                Your shopping list is automatically saved
+              </p>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={handleClearShoppingList}
+                style={{ marginTop: '0.5rem' }}
+              >
+                Clear shopping list
+              </button>
             </div>
 
-            <div className="field toggle-row">
-              <span>Show savings in percentage</span>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={showPercent}
-                  onChange={(e) => setShowPercent(e.target.checked)}
-                />
-                <span className="slider" />
-              </label>
-            </div>
-
-            <div className="field toggle-row">
-              <span>Highlight cheapest supermarket only</span>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={highlightCheapest}
-                  onChange={(e) => setHighlightCheapest(e.target.checked)}
-                />
-                <span className="slider" />
-              </label>
-            </div>
-
-            {saved && <div className="alert success">Preferences saved</div>}
+            {saved && <div className="alert success">Changes saved</div>}
 
             <button type="submit" className="btn primary">
-              Save changes
+              Save preferences
             </button>
           </form>
         )}
