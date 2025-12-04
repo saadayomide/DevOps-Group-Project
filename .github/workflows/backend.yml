@@ -85,21 +85,6 @@ jobs:
           app-name: ${{ secrets.AZURE_BACKEND_STAGING_APP_NAME }}
           images: ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-test-and-publish-image.outputs.image-tag }}
 
-      - name: Configure Application Insights (staging)
-        env:
-          APPINSIGHTS_KEY: ${{ secrets.APPINSIGHTS_INSTRUMENTATIONKEY }}
-          RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          APP_NAME: ${{ secrets.AZURE_BACKEND_STAGING_APP_NAME }}
-        run: |
-          if [ -n "$APPINSIGHTS_KEY" ] && [ -n "$RESOURCE_GROUP" ]; then
-            az webapp config appsettings set \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "$APP_NAME" \
-              --settings "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY"
-          else
-            echo "Skipping Application Insights config (secrets not set)"
-          fi
-
   deploy-production:
     name: Deploy to Production
     needs: [build-test-and-publish-image, deploy-staging]
@@ -118,18 +103,3 @@ jobs:
         with:
           app-name: ${{ secrets.AZURE_BACKEND_PRODUCTION_APP_NAME }}
           images: ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-test-and-publish-image.outputs.image-tag }}
-
-      - name: Configure Application Insights (production)
-        env:
-          APPINSIGHTS_KEY: ${{ secrets.APPINSIGHTS_INSTRUMENTATIONKEY }}
-          RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          APP_NAME: ${{ secrets.AZURE_BACKEND_PRODUCTION_APP_NAME }}
-        run: |
-          if [ -n "$APPINSIGHTS_KEY" ] && [ -n "$RESOURCE_GROUP" ]; then
-            az webapp config appsettings set \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "$APP_NAME" \
-              --settings "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY"
-          else
-            echo "Skipping Application Insights config (secrets not set)"
-          fi
