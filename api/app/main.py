@@ -2,6 +2,7 @@
 FastAPI main application file
 """
 
+import os
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -11,6 +12,16 @@ from app.db import engine, Base
 from app.middleware import LoggingMiddleware
 from app.routes import health, products, supermarkets, prices, compare, scraper
 import logging
+
+# Application Insights imports (optional - graceful fallback if not available)
+try:
+    from opencensus.ext.azure.trace_exporter import AzureExporter
+    from opencensus.ext.fastapi.fastapi_middleware import FastAPIMiddleware
+    from opencensus.trace.samplers import ProbabilitySampler
+
+    OPENCENSUS_AVAILABLE = True
+except ImportError:
+    OPENCENSUS_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(
@@ -51,6 +62,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add Application Insights telemetry middleware
+APPINSIGHTS_KEY = os.getenv("APPINSIGHTS_INSTRUMENTATIONKEY")
+if APPINSIGHTS_KEY and OPENCENSUS_AVAILABLE:
+    try:
+        app.add_middleware(
+            FastAPIMiddleware,
+            exporter=AzureExporter(connection_string=f"InstrumentationKey={APPINSIGHTS_KEY}"),
+            sampler=ProbabilitySampler(1.0),  # Sample 100% of requests
+        )
+        logger.info("Application Insights telemetry enabled")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Application Insights: {e}")
+elif not APPINSIGHTS_KEY:
+    logger.info("Application Insights disabled (no APPINSIGHTS_INSTRUMENTATIONKEY set)")
+elif not OPENCENSUS_AVAILABLE:
+    logger.warning("Application Insights disabled (opencensus packages not installed)")
 
 
 # Exception handlers for structured error responses
