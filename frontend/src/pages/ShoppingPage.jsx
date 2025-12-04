@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { compareBasket, fetchSupermarkets, searchProducts, refreshPrices, getScraperStatus } from '../api'
+import { compareBasket, fetchSupermarkets, searchProducts } from '../api'
 
 export default function ShoppingPage() {
   const [supermarkets, setSupermarkets] = useState([])
@@ -17,10 +17,6 @@ export default function ShoppingPage() {
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1)
   const inputRef = useRef(null)
   const suggestionsRef = useRef(null)
-
-  // Refresh prices state
-  const [refreshing, setRefreshing] = useState(false)
-  const [lastRefresh, setLastRefresh] = useState(null)
 
   // Load supermarkets on mount
   useEffect(() => {
@@ -140,22 +136,6 @@ export default function ShoppingPage() {
     addItem(suggestion.name)
   }
 
-  const handleRefreshPrices = async () => {
-    setRefreshing(true)
-    setError('')
-    try {
-      // Refresh prices for items in the list, or default items if empty
-      const queries = items.length > 0 ? items : null
-      await refreshPrices(queries)
-      setLastRefresh(new Date())
-    } catch (e) {
-      console.error('Failed to refresh prices:', e)
-      setError(`Price refresh failed: ${e.message}`)
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
   const handleCompare = useCallback(async () => {
     if (!items.length) {
       setError('Please add at least one item to your shopping list.')
@@ -247,41 +227,8 @@ export default function ShoppingPage() {
 
   return (
     <div className="shopping-page">
-      {/* Refresh Banner */}
-      {refreshing && (
-        <div className="refresh-banner">
-          <div className="spinner"></div>
-          <span>Fetching latest prices from Mercadona...</span>
-        </div>
-      )}
-
       <section className="card shopping-input-card">
-        <div className="card-header">
-          <h2>Shopping list</h2>
-          <button
-            type="button"
-            className="btn refresh-btn"
-            onClick={handleRefreshPrices}
-            disabled={refreshing}
-            title="Fetch latest prices from supermarkets"
-          >
-            {refreshing ? (
-              <>
-                <span className="spinner-small"></span>
-                Refreshing...
-              </>
-            ) : (
-              <>🔄 Refresh Prices</>
-            )}
-          </button>
-        </div>
-
-        {lastRefresh && (
-          <div className="last-refresh">
-            ✓ Prices updated {lastRefresh.toLocaleTimeString()}
-          </div>
-        )}
-
+        <h2>Shopping list</h2>
         {error && <div className="alert error">{error}</div>}
 
         <div className="input-row autocomplete-container">
@@ -415,7 +362,7 @@ export default function ShoppingPage() {
               <div className="alert" style={{ background: 'rgba(210, 153, 34, 0.15)', color: '#d29922' }}>
                 <strong>Items not found:</strong> {results.unmatched.join(', ')}
                 <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                  Try clicking "Refresh Prices" to search for these items online
+                  These items are not in the database. Try using product names from the autocomplete suggestions.
                 </div>
               </div>
             )}
