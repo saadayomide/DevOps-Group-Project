@@ -834,3 +834,58 @@ textarea {
   color: var(--success);
   margin-bottom: 0.75rem;
 }
+
+/* ---------- Comparison Table ---------- */
+.comparison-table-container {
+  overflow-x: auto;
+  margin: 0 -0.5rem;
+  padding: 0 0.5rem;
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.comparison-table th,
+.comparison-table td {
+  padding: 0.75rem 1rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.comparison-table th {
+  background: var(--bg-input);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.comparison-table th:first-child,
+.comparison-table td:first-child {
+  text-align: left;
+}
+
+.comparison-table td.item-name {
+  font-weight: 500;
+}
+
+.comparison-table td.cheapest-cell {
+  background: var(--success-bg);
+  color: var(--success);
+  font-weight: 600;
+}
+
+.cheapest-badge {
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.comparison-table .totals-row {
+  background: var(--bg-input);
+  border-top: 2px solid var(--border);
+}
+
+.comparison-table .totals-row td {
+  font-weight: 600;
+}

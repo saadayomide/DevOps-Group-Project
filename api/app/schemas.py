@@ -129,11 +129,27 @@ class CompareRequest(BaseModel):
 
 
 class CompareItem(BaseModel):
-    """Schema for a single compared item"""
+    """Schema for a single compared item (optimal basket - cheapest option)"""
 
     name: str = Field(..., description="Product name")
-    store: str = Field(..., description="Store name")
+    store: str = Field(..., description="Store name (cheapest)")
     price: float = Field(..., ge=0, description="Price of the item at this store")
+
+
+class StorePrice(BaseModel):
+    """Schema for a price at a specific store"""
+
+    store: str = Field(..., description="Store name")
+    price: float = Field(..., ge=0, description="Price at this store")
+
+
+class ItemPriceComparison(BaseModel):
+    """Schema for showing all prices of an item across stores"""
+
+    name: str = Field(..., description="Product name")
+    prices: List[StorePrice] = Field(..., description="Prices at each store")
+    cheapestStore: str = Field(..., description="Store with the cheapest price")
+    cheapestPrice: float = Field(..., ge=0, description="Cheapest price")
 
 
 class StoreTotal(BaseModel):
@@ -146,11 +162,15 @@ class StoreTotal(BaseModel):
 class CompareResponse(BaseModel):
     """Response schema for comparison - Single source of truth for output format (DoD)"""
 
-    items: List[CompareItem] = Field(..., description="List of compared items with prices")
+    items: List[CompareItem] = Field(..., description="Optimal basket - cheapest option per item")
     storeTotals: List[StoreTotal] = Field(..., description="Total price per store")
     overallTotal: float = Field(..., ge=0, description="Overall total across all stores")
     unmatched: List[str] = Field(
         default_factory=list, description="List of items that couldn't be matched"
+    )
+    # New: All prices for comparison table
+    priceComparison: List[ItemPriceComparison] = Field(
+        default_factory=list, description="All prices per item for comparison table"
     )
 
 

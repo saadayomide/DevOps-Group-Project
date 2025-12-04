@@ -11,6 +11,8 @@ from app.schemas import (
     StoreTotal,
     CompareResponse,
     CompareRequest,
+    StorePrice,
+    ItemPriceComparison,
 )
 from app.services.normalization import (
     normalize_product_name,
@@ -260,11 +262,45 @@ class CompareService:
         else:
             overall_total = 0.0
 
+        # Step 7: Build price comparison data (all prices per item)
+        price_comparison: List[ItemPriceComparison] = []
+        for item in request.items:
+            product = item_to_product.get(item)
+            if product is None:
+                continue
+
+            # Collect all prices for this item
+            item_prices: List[StorePrice] = []
+            cheapest_price = None
+            cheapest_store = None
+
+            for store_id in store_ids:
+                key = (product.id, store_id)
+                if key in prices_map:
+                    price = float(prices_map[key])
+                    store_name = store_id_to_name[store_id]
+                    item_prices.append(StorePrice(store=store_name, price=price))
+
+                    if cheapest_price is None or price < cheapest_price:
+                        cheapest_price = price
+                        cheapest_store = store_name
+
+            if item_prices:
+                price_comparison.append(
+                    ItemPriceComparison(
+                        name=item,
+                        prices=item_prices,
+                        cheapestStore=cheapest_store or "",
+                        cheapestPrice=cheapest_price or 0.0,
+                    )
+                )
+
         return CompareResponse(
             items=compare_items,
             storeTotals=store_totals_list,
             overallTotal=overall_total,
             unmatched=unmatched,
+            priceComparison=price_comparison,
         )
 
     def compare_items_across_stores(

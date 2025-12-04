@@ -356,58 +356,129 @@ export default function ShoppingPage() {
       </section>
 
       {results && (
-        <section className="card results-card">
-          <h2>Results</h2>
+        <>
+          {/* Price Comparison Table */}
+          {results.priceComparison && results.priceComparison.length > 0 && (
+            <section className="card results-card">
+              <h2>📊 Price Comparison</h2>
+              <p className="muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+                Compare prices across all supermarkets
+              </p>
 
-          {cheapestStore && (
-            <div className="best-deal">
-              <div className="best-deal-icon">🏆</div>
-              <div>
-                <div className="best-deal-title">Best deal: {cheapestStore.store}</div>
-                <div className="best-deal-total">€{cheapestStore.total.toFixed(2)}</div>
-              </div>
-            </div>
-          )}
-
-          {results.unmatched && results.unmatched.length > 0 && (
-            <div className="alert" style={{ background: 'rgba(210, 153, 34, 0.15)', color: '#d29922' }}>
-              <strong>Items not found:</strong> {results.unmatched.join(', ')}
-              <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                Try clicking "Refresh Prices" to search for these items online
-              </div>
-            </div>
-          )}
-
-          <div className="results-grid">
-            {storeBreakdown &&
-              Object.entries(storeBreakdown).map(([store, data]) => (
-                <div
-                  key={store}
-                  className={`store-card ${store === cheapestStore?.store ? 'cheapest' : ''}`}
-                >
-                  <h3>{store}</h3>
-                  <ul className="price-breakdown">
-                    {data.items &&
-                      Object.entries(data.items).map(([product, price]) => (
-                        <li key={product}>
-                          <span>{product}</span>
-                          <span>{price != null ? `€${price.toFixed(2)}` : '—'}</span>
-                        </li>
+              <div className="comparison-table-container">
+                <table className="comparison-table">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      {selectedStores.map((store) => (
+                        <th key={store}>{store}</th>
                       ))}
-                  </ul>
-                  <div className="store-total">
-                    Total: <strong>€{data.total.toFixed(2)}</strong>
-                  </div>
-                </div>
-              ))}
-          </div>
-
-          {results.overallTotal != null && (
-            <div className="overall-total">
-              Optimal basket total: <strong>€{results.overallTotal.toFixed(2)}</strong>
-            </div>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.priceComparison.map((item) => (
+                      <tr key={item.name}>
+                        <td className="item-name">{item.name}</td>
+                        {selectedStores.map((store) => {
+                          const storePrice = item.prices.find((p) => p.store === store)
+                          const isCheapest = store === item.cheapestStore
+                          return (
+                            <td
+                              key={store}
+                              className={isCheapest ? 'cheapest-cell' : ''}
+                            >
+                              {storePrice ? (
+                                <>
+                                  €{storePrice.price.toFixed(2)}
+                                  {isCheapest && <span className="cheapest-badge">✓</span>}
+                                </>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                    {/* Totals row */}
+                    <tr className="totals-row">
+                      <td><strong>Total</strong></td>
+                      {selectedStores.map((store) => {
+                        const storeTotal = results.storeTotals?.find((st) => st.store === store)
+                        const total = results.priceComparison.reduce((sum, item) => {
+                          const p = item.prices.find((p) => p.store === store)
+                          return sum + (p ? p.price : 0)
+                        }, 0)
+                        return (
+                          <td key={store}>
+                            <strong>€{total.toFixed(2)}</strong>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
           )}
-        </section>
+
+          {/* Optimal Basket Section */}
+          <section className="card results-card">
+            <h2>🏆 Optimal Basket</h2>
+            <p className="muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+              Best store to buy each item
+            </p>
+
+            {cheapestStore && (
+              <div className="best-deal">
+                <div className="best-deal-icon">🏆</div>
+                <div>
+                  <div className="best-deal-title">Best deal: {cheapestStore.store}</div>
+                  <div className="best-deal-total">€{cheapestStore.total.toFixed(2)}</div>
+                </div>
+              </div>
+            )}
+
+            {results.unmatched && results.unmatched.length > 0 && (
+              <div className="alert" style={{ background: 'rgba(210, 153, 34, 0.15)', color: '#d29922' }}>
+                <strong>Items not found:</strong> {results.unmatched.join(', ')}
+                <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                  Try clicking "Refresh Prices" to search for these items online
+                </div>
+              </div>
+            )}
+
+            <div className="results-grid">
+              {storeBreakdown &&
+                Object.entries(storeBreakdown).map(([store, data]) => (
+                  <div
+                    key={store}
+                    className={`store-card ${store === cheapestStore?.store ? 'cheapest' : ''}`}
+                  >
+                    <h3>{store}</h3>
+                    <ul className="price-breakdown">
+                      {data.items &&
+                        Object.entries(data.items).map(([product, price]) => (
+                          <li key={product}>
+                            <span>{product}</span>
+                            <span>{price != null ? `€${price.toFixed(2)}` : '—'}</span>
+                          </li>
+                        ))}
+                    </ul>
+                    <div className="store-total">
+                      Total: <strong>€{data.total.toFixed(2)}</strong>
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {results.overallTotal != null && (
+              <div className="overall-total">
+                Optimal basket total: <strong>€{results.overallTotal.toFixed(2)}</strong>
+              </div>
+            )}
+          </section>
+        </>
       )}
     </div>
   )
