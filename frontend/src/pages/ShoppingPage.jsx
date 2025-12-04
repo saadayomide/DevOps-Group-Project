@@ -178,36 +178,62 @@ export default function ShoppingPage() {
   }, [items, selectedStores])
 
   // Transform backend response to storeBreakdown format for display
+  // Shows ALL prices for ALL items at each store (not just optimal basket)
   const storeBreakdown = useMemo(() => {
     if (!results) return null
 
     const breakdown = {}
 
-    if (results.storeTotals) {
-      for (const st of results.storeTotals) {
-        breakdown[st.store] = { items: {}, total: st.total }
-      }
-    }
+    // Initialize all selected stores
+    selectedStores.forEach((store) => {
+      breakdown[store] = { items: {}, total: 0 }
+    })
 
-    if (results.items) {
-      for (const item of results.items) {
-        if (!breakdown[item.store]) {
-          breakdown[item.store] = { items: {}, total: 0 }
+    // Use priceComparison if available (shows all prices)
+    if (results.priceComparison && results.priceComparison.length > 0) {
+      results.priceComparison.forEach((item) => {
+        item.prices.forEach((storePrice) => {
+          if (selectedStores.includes(storePrice.store)) {
+            if (!breakdown[storePrice.store]) {
+              breakdown[storePrice.store] = { items: {}, total: 0 }
+            }
+            breakdown[storePrice.store].items[item.name] = storePrice.price
+            breakdown[storePrice.store].total += storePrice.price
+          }
+        })
+      })
+    } else {
+      // Fallback: use optimal basket data (only cheapest items)
+      if (results.storeTotals) {
+        for (const st of results.storeTotals) {
+          breakdown[st.store] = { items: {}, total: st.total }
         }
-        breakdown[item.store].items[item.name] = item.price
+      }
+
+      if (results.items) {
+        for (const item of results.items) {
+          if (!breakdown[item.store]) {
+            breakdown[item.store] = { items: {}, total: 0 }
+          }
+          breakdown[item.store].items[item.name] = item.price
+        }
       }
     }
 
     return Object.keys(breakdown).length > 0 ? breakdown : null
-  }, [results])
+  }, [results, selectedStores])
 
-  // Find cheapest store
+  // Find cheapest store (based on total if buying ALL items at that store)
   const cheapestStore = useMemo(() => {
-    if (!results?.storeTotals?.length) return null
+    if (!storeBreakdown) return null
 
-    const sorted = [...results.storeTotals]
-      .filter((st) => st.total > 0)
-      .sort((a, b) => a.total - b.total)
+    // Calculate totals for all stores (buying all items at each store)
+    const storeTotals = Object.entries(storeBreakdown).map(([store, data]) => ({
+      store,
+      total: data.total,
+    }))
+
+    const sorted = storeTotals.filter((st) => st.total > 0).sort((a, b) => a.total - b.total)
 
     if (sorted.length === 0) return null
 
@@ -215,9 +241,9 @@ export default function ShoppingPage() {
     return {
       store: best.store,
       total: best.total,
-      items: storeBreakdown?.[best.store]?.items || {},
+      items: storeBreakdown[best.store]?.items || {},
     }
-  }, [results, storeBreakdown])
+  }, [storeBreakdown])
 
   return (
     <div className="shopping-page">
@@ -366,94 +392,21 @@ export default function ShoppingPage() {
       </section>
 
       {results && (
-        <>
-          {/* Price Comparison Table */}
-          {results.priceComparison && results.priceComparison.length > 0 ? (
-            <section className="card results-card">
-              <h2>📊 Price Comparison</h2>
-              <p className="muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
-                Compare prices across all supermarkets
-              </p>
-
-              <div className="comparison-table-container">
-                <table className="comparison-table">
-                  <thead>
-                    <tr>
-                      <th>Item</th>
-                      {selectedStores.map((store) => (
-                        <th key={store}>{store}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.priceComparison.map((item) => (
-                      <tr key={item.name}>
-                        <td className="item-name">{item.name}</td>
-                        {selectedStores.map((store) => {
-                          const storePrice = item.prices.find((p) => p.store === store)
-                          const isCheapest = store === item.cheapestStore
-                          return (
-                            <td
-                              key={store}
-                              className={isCheapest ? 'cheapest-cell' : ''}
-                            >
-                              {storePrice ? (
-                                <>
-                                  €{storePrice.price.toFixed(2)}
-                                  {isCheapest && <span className="cheapest-badge">✓</span>}
-                                </>
-                              ) : (
-                                '—'
-                              )}
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    ))}
-                    {/* Totals row */}
-                    <tr className="totals-row">
-                      <td><strong>Total</strong></td>
-                      {selectedStores.map((store) => {
-                        const storeTotal = results.storeTotals?.find((st) => st.store === store)
-                        const total = results.priceComparison.reduce((sum, item) => {
-                          const p = item.prices.find((p) => p.store === store)
-                          return sum + (p ? p.price : 0)
-                        }, 0)
-                        return (
-                          <td key={store}>
-                            <strong>€{total.toFixed(2)}</strong>
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ) : (
-            <section className="card results-card">
-              <h2>📊 Price Comparison</h2>
-              <div className="muted" style={{ padding: '1rem', textAlign: 'center' }}>
-                Comparison table will appear here after backend update.
-                <br />
-                <small>Currently showing optimal basket view below.</small>
-              </div>
-            </section>
-          )}
-
-          {/* Optimal Basket Section */}
-          <section className="card results-card">
-            <h2>🏆 Optimal Basket</h2>
-            <p className="muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
-              Best store to buy each item
-            </p>
+        <section className="card results-card">
+          <h2>Price Comparison</h2>
+          <p className="muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+            Compare prices across all supermarkets. Green border indicates cheapest total.
+          </p>
 
             {cheapestStore && (
               <div className="best-deal">
                 <div className="best-deal-icon">🏆</div>
                 <div>
-                  <div className="best-deal-title">Best deal: {cheapestStore.store}</div>
+                  <div className="best-deal-title">Cheapest total: {cheapestStore.store}</div>
                   <div className="best-deal-total">€{cheapestStore.total.toFixed(2)}</div>
+                  <div style={{ fontSize: '0.85rem', marginTop: '0.25rem', opacity: 0.8 }}>
+                    (Buy all items at {cheapestStore.store})
+                  </div>
                 </div>
               </div>
             )}
@@ -469,35 +422,61 @@ export default function ShoppingPage() {
 
             <div className="results-grid">
               {storeBreakdown &&
-                Object.entries(storeBreakdown).map(([store, data]) => (
-                  <div
-                    key={store}
-                    className={`store-card ${store === cheapestStore?.store ? 'cheapest' : ''}`}
-                  >
-                    <h3>{store}</h3>
-                    <ul className="price-breakdown">
-                      {data.items &&
-                        Object.entries(data.items).map(([product, price]) => (
-                          <li key={product}>
-                            <span>{product}</span>
-                            <span>{price != null ? `€${price.toFixed(2)}` : '—'}</span>
-                          </li>
-                        ))}
-                    </ul>
-                    <div className="store-total">
-                      Total: <strong>€{data.total.toFixed(2)}</strong>
+                Object.entries(storeBreakdown).map(([store, data]) => {
+                  // Find cheapest price for each item across all stores
+                  const cheapestPrices = {}
+                  if (results.priceComparison) {
+                    results.priceComparison.forEach((item) => {
+                      cheapestPrices[item.name] = item.cheapestPrice
+                    })
+                  }
+
+                  return (
+                    <div
+                      key={store}
+                      className={`store-card ${store === cheapestStore?.store ? 'cheapest' : ''}`}
+                    >
+                      <h3>{store}</h3>
+                      <ul className="price-breakdown">
+                        {data.items &&
+                          Object.entries(data.items).map(([product, price]) => {
+                            const isCheapest = results.priceComparison
+                              ? results.priceComparison
+                                  .find((item) => item.name === product)
+                                  ?.cheapestStore === store
+                              : false
+                            return (
+                              <li key={product} className={isCheapest ? 'cheapest-item' : ''}>
+                                <span>{product}</span>
+                                <span>
+                                  {price != null ? (
+                                    <>
+                                      €{price.toFixed(2)}
+                                      {isCheapest && <span className="cheapest-badge">✓</span>}
+                                    </>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </span>
+                              </li>
+                            )
+                          })}
+                      </ul>
+                      <div className="store-total">
+                        Total: <strong>€{data.total.toFixed(2)}</strong>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
             </div>
 
-            {results.overallTotal != null && (
+            {results.overallTotal != null && cheapestStore && (
               <div className="overall-total">
-                Optimal basket total: <strong>€{results.overallTotal.toFixed(2)}</strong>
+                Best single-store total: <strong>€{results.overallTotal.toFixed(2)}</strong> at{' '}
+                <strong>{cheapestStore.store}</strong>
               </div>
             )}
-          </section>
-        </>
+        </section>
       )}
     </div>
   )
