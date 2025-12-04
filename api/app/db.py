@@ -3,19 +3,23 @@ Database connection and session management
 """
 
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 from app.config import settings
 
 # Create engine with connection pooling (pool_size=5)
 # SQL_CONNECTION_STRING is read from environment variable
 # SQLite doesn't support pool_size and max_overflow, so conditionally apply them
-engine_kwargs = {"pool_pre_ping": True, "echo": settings.debug}  # Verify connections before using
+engine_kwargs = {
+    "pool_pre_ping": True,  # Verify connections before using
+    "echo": settings.debug,
+}
 
-# Only use connection pooling for non-SQLite databases
+# Only use connection pooling and timeout for non-SQLite databases
 if not settings.sql_connection_string.startswith("sqlite"):
     engine_kwargs["pool_size"] = 5
     engine_kwargs["max_overflow"] = 10
+    engine_kwargs["pool_timeout"] = 30  # Timeout waiting for connection
+    engine_kwargs["connect_args"] = {"connect_timeout": 10}  # Connection timeout
 
 engine = create_engine(settings.sql_connection_string, **engine_kwargs)
 
