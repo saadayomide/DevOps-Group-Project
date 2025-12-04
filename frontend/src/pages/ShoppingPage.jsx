@@ -312,18 +312,28 @@ export default function ShoppingPage() {
             <span>Loading supermarkets...</span>
           </div>
         ) : supermarkets.length > 0 ? (
-          <div className="chip-group">
-            {supermarkets.map((s) => (
-              <button
-                key={s.id ?? s.name}
-                type="button"
-                className={selectedStores.includes(s.name) ? 'chip active' : 'chip'}
-                onClick={() => toggleStore(s.name)}
-              >
-                {s.name}
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="chip-group">
+              {supermarkets.map((s) => {
+                const isLive = s.name === 'Mercadona' // Only Mercadona has live scraping
+                return (
+                  <button
+                    key={s.id ?? s.name}
+                    type="button"
+                    className={selectedStores.includes(s.name) ? 'chip active' : 'chip'}
+                    onClick={() => toggleStore(s.name)}
+                    title={isLive ? 'Live prices (scraped)' : 'Static prices (seed data)'}
+                  >
+                    {s.name}
+                    {isLive && <span className="live-badge">🟢</span>}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="muted" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
+              🟢 = Live prices (scraped) | Others = Static prices (seed data)
+            </div>
+          </>
         ) : (
           <div className="muted">
             No supermarkets available.
@@ -358,7 +368,7 @@ export default function ShoppingPage() {
       {results && (
         <>
           {/* Price Comparison Table */}
-          {results.priceComparison && results.priceComparison.length > 0 && (
+          {results.priceComparison && results.priceComparison.length > 0 ? (
             <section className="card results-card">
               <h2>📊 Price Comparison</h2>
               <p className="muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
@@ -418,6 +428,15 @@ export default function ShoppingPage() {
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            </section>
+          ) : (
+            <section className="card results-card">
+              <h2>📊 Price Comparison</h2>
+              <div className="muted" style={{ padding: '1rem', textAlign: 'center' }}>
+                Comparison table will appear here after backend update.
+                <br />
+                <small>Currently showing optimal basket view below.</small>
               </div>
             </section>
           )}

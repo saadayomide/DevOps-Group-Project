@@ -267,6 +267,11 @@ textarea {
   color: #000;
 }
 
+.chip .live-badge {
+  margin-left: 0.25rem;
+  font-size: 0.7rem;
+}
+
 /* ---------- Cards ---------- */
 .card {
   background: var(--bg-card);
