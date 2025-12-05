@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware as FastAPICORSMiddleware
 from app.config import settings
 from app.db import engine, Base
 from app.middleware import LoggingMiddleware
-from app.routes import health, products, supermarkets, prices, compare, scraper
+from app.routes import health, products, supermarkets, prices, compare, scraper, debug 
 import logging
 
 # Application Insights imports (optional - graceful fallback if not available)
@@ -142,6 +142,7 @@ app.include_router(products.router, prefix=f"{settings.api_prefix}/products", ta
 app.include_router(prices.router, prefix=f"{settings.api_prefix}/prices", tags=["Prices"])
 app.include_router(compare.router, prefix=f"{settings.api_prefix}/compare", tags=["Compare"])
 app.include_router(scraper.router, prefix=f"{settings.api_prefix}/scraper", tags=["Scraper"])
+app.include_router(debug.router, tags=["Debug"]) 
 
 
 @app.get("/")
