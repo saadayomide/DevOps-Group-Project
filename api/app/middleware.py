@@ -7,7 +7,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 import time
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 
 # Configure structured logging
 logger = logging.getLogger(__name__)
@@ -77,9 +77,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 class CORSMiddleware(BaseHTTPMiddleware):
     """Custom CORS middleware (or use FastAPI's built-in)"""
 
-    def __init__(self, app, allow_origins: list[str] = ["*"]):
+    def __init__(self, app, allow_origins: Optional[List[str]] = None):
         super().__init__(app)
-        self.allow_origins = allow_origins
+        # Use a default of allow all origins if not provided
+        self.allow_origins = allow_origins if allow_origins is not None else ["*"]
 
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)

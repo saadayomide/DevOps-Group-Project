@@ -4,7 +4,7 @@ Implements hard filters, scoring heuristics and a filter->score->rank pipeline.
 """
 from typing import Dict, List, Optional, Tuple
 from decimal import Decimal
-from app.services.normalization import ProductSpec, normalize_string
+from app.services.normalization import ProductSpec, normalize_string, CATEGORY_RULES
 
 
 # Tunable weights
@@ -32,10 +32,16 @@ def hard_filters_fail(spec: ProductSpec, offer: Dict) -> bool:
     """Return True if this offer should be rejected outright by hard filters."""
     text = normalize_string(" ".join([str(offer.get("name") or ""), str(offer.get("category") or ""), str(offer.get("description") or "")] ))
 
-    # Forbidden terms from matching rules
-    for cat, match in spec.matched_rules.items():
-        for forb in match.get("matched_forbidden", []):
-            if forb in text:
+    # Forbidden terms for any matched category should reject the offer.
+    # Use the canonical CATEGORY_RULES so we consider category-level forbidden terms
+    # even when the spec tokens didn't explicitly include them.
+    for cat in spec.matched_rules.keys():
+        rules = CATEGORY_RULES.get(cat, {})
+        for forb in rules.get("forbidden_terms", []):
+            # normalize forbidden token to be safe
+            if not forb:
+                continue
+            if normalize_string(forb) in text:
                 return True
 
     # If the offer explicitly reports a category and spec has matched rules, prefer equality
@@ -88,10 +94,13 @@ def score_offer(spec: ProductSpec, offer: Dict, price_rank_score: float = 0.0) -
     # Price rank helps but does not dominate
     score += price_rank_score * WEIGHTS["price_bonus"]
 
-    # Penalize presence of explicit forbidden tokens across all categories
-    for cat, match in spec.matched_rules.items():
-        for forb in match.get("matched_forbidden", []):
-            if forb in text:
+    # Penalize presence of explicit forbidden tokens across all matched categories
+    for cat in spec.matched_rules.keys():
+        rules = CATEGORY_RULES.get(cat, {})
+        for forb in rules.get("forbidden_terms", []):
+            if not forb:
+                continue
+            if normalize_string(forb) in text:
                 score += WEIGHTS["irrelevant_penalty"]
 
     return score

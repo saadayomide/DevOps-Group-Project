@@ -21,8 +21,8 @@ class DummyOffer:
         self.url = url
 
 
-async def fake_scrape(self, query):
-    # Return deterministic offers for test
+def fake_get_offers(self, query):
+    # Return deterministic offers for test (synchronous)
     return [
         {"name": "Leche desnatada 1L", "price": 1.2, "category": "milk", "subcategory": "desnatada", "store": "Mercadona", "url": "http://m/1"},
         {"name": "Leche entera 1L", "price": 1.0, "category": "milk", "subcategory": "entera", "store": "Mercadona", "url": "http://m/2"},
@@ -44,10 +44,10 @@ def test_refresh_updates_items(monkeypatch):
     session.add(item)
     session.commit()
 
-    # Monkeypatch scraper
-    import app.services.scraper_service as ss
+    # Monkeypatch ScraperManager.get_offers
+    import app.services.scrapers.manager as sm
 
-    monkeypatch.setattr(ss.ScraperService, "scrape_mercadona_product", fake_scrape)
+    monkeypatch.setattr(sm.ScraperManager, "get_offers", fake_get_offers)
 
     summary = refresh_shopping_list(sl.id, session)
 
