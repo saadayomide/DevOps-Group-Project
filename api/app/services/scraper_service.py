@@ -1,25 +1,41 @@
 """
-Scraper service to fetch prices from supermarkets and update the database.
+Scraper service to orchestrate price scraping and database updates.
+
+This service connects the scraper layer with the database layer.
+Uses ScraperManager facade to fetch from all stores.
+
+Architecture:
+- API routes → ScraperService → ScraperManager → Individual Scrapers → DB
+
+SOLID Principles:
+- SRP: This service handles only DB integration
+- DIP: Depends on ScraperManager abstraction
 """
 
-import asyncio
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from decimal import Decimal
 from sqlalchemy.orm import Session
+
 from app.models import Product, Supermarket, Price
-from app.services.scrapers.mercadona import search_mercadona_cheapest
+from app.services.scrapers import ScraperManager, Offer
 
 logger = logging.getLogger(__name__)
 
 
 class ScraperService:
-    """Service to orchestrate scraping and database updates"""
+    """
+    Service to orchestrate scraping and database updates.
 
-    STORE_NAME = "Mercadona"
+    Responsibilities:
+    - Coordinate scraping across stores
+    - Update database with scraped prices
+    - Handle errors gracefully
+    """
 
     def __init__(self, db: Session):
         self.db = db
+        self.manager = ScraperManager()
 
     def get_or_create_supermarket(self, name: str, city: str = "Madrid") -> Supermarket:
         """Get existing supermarket or create new one"""
@@ -34,9 +50,8 @@ class ScraperService:
 
         return store
 
-    def get_or_create_product(self, name: str, category: str) -> Product:
+    def get_or_create_product(self, name: str, category: str = "General") -> Product:
         """Get existing product or create new one"""
-        # Try exact match first
         product = self.db.query(Product).filter(Product.name.ilike(name)).first()
 
         if not product:
@@ -61,7 +76,11 @@ class ScraperService:
             price_entry.price = Decimal(str(price))
             logger.info(f"Updated price for {product.name} at {store.name}: {old_price} -> {price}")
         else:
-            price_entry = Price(product_id=product.id, store_id=store.id, price=Decimal(str(price)))
+            price_entry = Price(
+                product_id=product.id,
+                store_id=store.id,
+                price=Decimal(str(price)),
+            )
             self.db.add(price_entry)
             logger.info(f"Created price for {product.name} at {store.name}: {price}")
 
@@ -69,55 +88,121 @@ class ScraperService:
         self.db.refresh(price_entry)
         return price_entry
 
-    async def scrape_mercadona_product(self, query: str) -> List[dict]:
+    def process_offers(self, offers: List[Offer]) -> Dict[str, Any]:
         """
-        Scrape Mercadona for a specific product query and update database.
-        Returns list of found products with prices.
+        Process a list of offers and update the database.
+
+        Args:
+            offers: List of Offer objects from scrapers
+
+        Returns:
+            Summary of processed offers
         """
-        results = []
+        results = {
+            "processed": 0,
+            "created": 0,
+            "updated": 0,
+            "errors": [],
+        }
 
-        try:
-            # Get or create the Mercadona store entry
-            store = self.get_or_create_supermarket(self.STORE_NAME)
+        for offer in offers:
+            try:
+                # Get or create store
+                store = self.get_or_create_supermarket(offer.store)
 
-            # Search Mercadona
-            logger.info(f"Searching Mercadona for: {query}")
-            cheapest, matches = await search_mercadona_cheapest(query, max_category_groups=5)
+                # Get or create product
+                product = self.get_or_create_product(offer.name)
 
-            if not matches:
-                logger.warning(f"No products found for query: {query}")
-                return []
-
-            # Update database with found products
-            for merc_product in matches[:10]:  # Limit to top 10 matches
-                product = self.get_or_create_product(
-                    name=merc_product.name, category=merc_product.category_name
+                # Check if this is an update or create
+                existing = (
+                    self.db.query(Price)
+                    .filter(Price.product_id == product.id, Price.store_id == store.id)
+                    .first()
                 )
 
-                self.update_price(product, store, merc_product.price)
+                if existing:
+                    results["updated"] += 1
+                else:
+                    results["created"] += 1
 
-                results.append(
+                # Update price
+                self.update_price(product, store, offer.price)
+                results["processed"] += 1
+
+            except Exception as e:
+                results["errors"].append(
                     {
-                        "name": merc_product.name,
-                        "price": merc_product.price,
-                        "category": merc_product.category_name,
-                        "subcategory": merc_product.subcategory_name,
-                        "store": self.STORE_NAME,
+                        "offer": offer.name,
+                        "store": offer.store,
+                        "error": str(e),
                     }
                 )
-
-            logger.info(f"Updated {len(results)} products for query: {query}")
-
-        except Exception as e:
-            logger.error(f"Error scraping Mercadona for {query}: {e}")
-            raise
+                logger.error(f"Error processing offer {offer.name}: {e}")
 
         return results
 
-    async def scrape_all_products(self, queries: Optional[List[str]] = None) -> dict:
+    async def scrape_product(self, query: str, store: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Scrape products for a query and update database.
+
+        Args:
+            query: Search query
+            store: Optional specific store to scrape
+
+        Returns:
+            Dictionary with results summary
+        """
+        logger.info(f"Scraping for query: {query}, store: {store or 'all'}")
+
+        try:
+            # Get offers from scraper(s)
+            if store:
+                offers = self.manager.get_offers_by_store(query, store)
+            else:
+                offers = self.manager.get_offers(query)
+
+            if not offers:
+                return {
+                    "status": "no_results",
+                    "message": f"No products found for: {query}",
+                    "query": query,
+                    "store": store,
+                    "offers_found": 0,
+                    "processed": 0,
+                }
+
+            # Process offers into database
+            results = self.process_offers(offers)
+
+            return {
+                "status": "success",
+                "message": f"Processed {results['processed']} products",
+                "query": query,
+                "store": store,
+                "offers_found": len(offers),
+                **results,
+            }
+
+        except Exception as e:
+            logger.error(f"Error scraping for {query}: {e}")
+            return {
+                "status": "error",
+                "message": str(e),
+                "query": query,
+                "store": store,
+                "offers_found": 0,
+                "processed": 0,
+            }
+
+    async def scrape_all_products(self, queries: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Scrape multiple products and update database.
-        If no queries provided, uses default common grocery items.
+
+        Args:
+            queries: List of search queries (default: common grocery items)
+
+        Returns:
+            Aggregated results from all queries
         """
         if queries is None:
             # Default queries - common Spanish grocery items
@@ -130,33 +215,51 @@ class ScraperService:
                 "pollo",
                 "tomate",
                 "patatas",
-                "aceite oliva",
+                "aceite",
                 "yogur",
             ]
 
         all_results = {
-            "total_products_updated": 0,
+            "status": "completed",
+            "total_offers_found": 0,
+            "total_processed": 0,
+            "total_created": 0,
+            "total_updated": 0,
             "queries_processed": 0,
             "errors": [],
-            "products": [],
+            "details": [],
         }
 
         for query in queries:
             try:
-                results = await self.scrape_mercadona_product(query)
-                all_results["products"].extend(results)
-                all_results["total_products_updated"] += len(results)
+                result = await self.scrape_product(query)
+                all_results["details"].append(result)
+                all_results["total_offers_found"] += result.get("offers_found", 0)
+                all_results["total_processed"] += result.get("processed", 0)
+                all_results["total_created"] += result.get("created", 0)
+                all_results["total_updated"] += result.get("updated", 0)
                 all_results["queries_processed"] += 1
+
+                if result.get("errors"):
+                    all_results["errors"].extend(result["errors"])
+
             except Exception as e:
-                all_results["errors"].append({"query": query, "error": str(e)})
+                all_results["errors"].append(
+                    {
+                        "query": query,
+                        "error": str(e),
+                    }
+                )
 
         return all_results
 
 
-def run_scraper_sync(db: Session, queries: Optional[List[str]] = None) -> dict:
+def run_scraper_sync(db: Session, queries: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Synchronous wrapper for running the scraper.
     Can be called from a scheduled job or API endpoint.
     """
+    import asyncio
+
     service = ScraperService(db)
     return asyncio.run(service.scrape_all_products(queries))

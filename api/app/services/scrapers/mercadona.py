@@ -1,30 +1,60 @@
+"""
+Mercadona scraper implementation.
+
+Uses Playwright's APIRequestContext to fetch data from Mercadona's internal API.
+Implements BaseScraper interface for unified data acquisition layer.
+
+Design Patterns:
+- Adapter: Converts Mercadona API response to unified Offer format
+- Template Method: Inherits from BaseScraper
+
+Error Handling:
+- All errors are logged and return empty list (graceful degradation)
+- API timeouts and blocks are handled gracefully
+- Never crashes the matching engine
+"""
+
 import asyncio
 import re
+import logging
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-from playwright.async_api import async_playwright, APIRequestContext, APIResponse
+from .base import BaseScraper, Offer, ScraperFactory, normalize_text, extract_brand
+
+logger = logging.getLogger(__name__)
+
+# Check if Playwright is available (optional dependency)
+try:
+    from playwright.async_api import async_playwright, APIRequestContext, APIResponse
+
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+    logger.warning("Playwright not available - Mercadona live scraping disabled")
 
 
-# ---- Data model -------------------------------------------------------------
+# ---- Internal Data Model --------------------------------------------------------
 
 
 @dataclass
 class MercadonaProduct:
+    """Internal representation of Mercadona product data"""
+
     id: int
     name: str
-    price: float  # base price (per unit / pack)
-    price_raw: str  # raw string, e.g. "1,25 €"
-    category_name: str  # top-level group, e.g. "Huevos, leche y mantequilla"
-    subcategory_name: str  # subcategory, e.g. "Leche y bebidas vegetales"
+    price: float
+    price_raw: str
+    category_name: str
+    subcategory_name: str
     category_id: int
     subcategory_id: int
-    unit_size: Optional[str] = None  # e.g. "1 l"
-    unit_price: Optional[str] = None  # e.g. "0,45 €/l"
-    slug: Optional[str] = None  # used to build product URL if needed
+    unit_size: Optional[str] = None
+    unit_price: Optional[str] = None
+    slug: Optional[str] = None
 
 
-# ---- Helpers ----------------------------------------------------------------
+# ---- Helper Functions -----------------------------------------------------------
 
 
 def _extract_number_from_price(text: str) -> Optional[float]:
@@ -42,24 +72,23 @@ def _extract_number_from_price(text: str) -> Optional[float]:
 
 def _matches_query(name: str, query: str) -> bool:
     """
-    Slightly smarter matching:
-    - lowercases everything
-    - splits the query into words of length >= 3
-    - requires ALL those words to be present in the product name
-    So "leche entera" will match "Leche UHT entera 1L Hacendado".
+    Check if product name matches search query.
+    - Lowercases everything
+    - Splits query into words of length >= 3
+    - Requires ALL those words to be present in product name
     """
-    name_l = name.lower()
-    # words of 3+ chars to avoid matching "de", "y", etc.
-    words = [w for w in re.split(r"\s+", query.lower().strip()) if len(w) >= 3]
+    name_l = normalize_text(name)
+    query_normalized = normalize_text(query)
+
+    # Words of 3+ chars to avoid matching "de", "y", etc.
+    words = [w for w in query_normalized.split() if len(w) >= 3]
     if not words:
         return False
     return all(w in name_l for w in words)
 
 
-async def _ensure_ok(resp: APIResponse, context: str) -> None:
-    """
-    Manual version of raise_for_status() for Playwright APIResponse.
-    """
+async def _ensure_ok(resp: "APIResponse", context: str) -> None:
+    """Validate API response status"""
     if not resp.ok:
         try:
             body = await resp.text()
@@ -68,37 +97,31 @@ async def _ensure_ok(resp: APIResponse, context: str) -> None:
         raise RuntimeError(f"{context} failed with status {resp.status}: {body[:300]}")
 
 
-# ---- HTTP calls -------------------------------------------------------------
+# ---- API Functions --------------------------------------------------------------
 
 
-async def fetch_categories(api: APIRequestContext) -> list:
-    """
-    Fetch /api/categories/ and return the 'results' list.
-    """
+async def fetch_categories(api: "APIRequestContext") -> list:
+    """Fetch /api/categories/ and return the 'results' list."""
     resp = await api.get("/api/categories/")
     await _ensure_ok(resp, "GET /api/categories/")
     data = await resp.json()
-    return data["results"]  # list of top-level category groups
+    return data["results"]
 
 
-async def fetch_category_detail(api: APIRequestContext, category_id: int) -> dict:
-    """
-    Fetch a single category's full JSON from /api/categories/{id}/
-    """
+async def fetch_category_detail(api: "APIRequestContext", category_id: int) -> dict:
+    """Fetch a single category's full JSON from /api/categories/{id}/"""
     resp = await api.get(f"/api/categories/{category_id}/")
     await _ensure_ok(resp, f"GET /api/categories/{category_id}/")
     return await resp.json()
 
 
-# ---- Parsing -------------------------------------------------------------
+# ---- Parsing Functions ----------------------------------------------------------
 
 
 def _collect_products_from_detail(category_detail: dict) -> List[dict]:
     """
-    Mercadona sometimes puts products directly in 'products',
-    and sometimes under nested 'categories' -> 'products'.
-
-    This function returns a flat list of all product dicts in that detail.
+    Collect all products from category detail.
+    Handles both direct products and nested subcategories.
     """
     products: List[dict] = []
 
@@ -112,7 +135,6 @@ def _collect_products_from_detail(category_detail: dict) -> List[dict]:
     for sub in nested_cats:
         sub_products = sub.get("products") or []
         for p in sub_products:
-            # store nested subcategory name for later if needed
             p["_nested_subcategory_name"] = sub.get("name")
         products.extend(sub_products)
 
@@ -125,16 +147,12 @@ def _parse_category_products(
     fallback_subcat_name: str,
     fallback_subcat_id: int,
 ) -> List[MercadonaProduct]:
-    """
-    Parse products from a category_detail payload.
-    """
+    """Parse products from a category_detail payload."""
     products_raw = _collect_products_from_detail(category_detail)
 
     group_name = category_group["name"]
     group_id = category_group["id"]
 
-    # If the detail has its own name/id we use them; otherwise we keep the
-    # fallback from the original 'subcat' object.
     base_subcat_name = category_detail.get("name") or fallback_subcat_name
     base_subcat_id = category_detail.get("id") or fallback_subcat_id
 
@@ -163,8 +181,6 @@ def _parse_category_products(
             # No price we can trust → skip
             continue
 
-        # If we had a nested subcategory name, prefer that so you see
-        # "Leche y bebidas vegetales" instead of some generic.
         nested_name = p.get("_nested_subcategory_name")
         final_subcat_name = nested_name or base_subcat_name
 
@@ -187,7 +203,7 @@ def _parse_category_products(
     return parsed
 
 
-# ---- High-level search -----------------------------------------------------
+# ---- High-Level Search ----------------------------------------------------------
 
 
 async def search_mercadona_cheapest(
@@ -195,13 +211,19 @@ async def search_mercadona_cheapest(
     max_category_groups: Optional[int] = None,
 ) -> Tuple[Optional[MercadonaProduct], List[MercadonaProduct]]:
     """
-    High-level function:
+    Search Mercadona products via their API.
 
-    - Spins up Playwright
-    - Walks Mercadona categories
-    - Filters products by query
-    - Returns: (cheapest_product or None, sorted_matches_list)
+    Args:
+        query: Search query
+        max_category_groups: Limit categories to search (for speed)
+
+    Returns:
+        Tuple of (cheapest_product, all_matches)
     """
+    if not PLAYWRIGHT_AVAILABLE:
+        logger.warning("Playwright not available, returning empty results")
+        return None, []
+
     async with async_playwright() as p:
         api = await p.request.new_context(base_url="https://tienda.mercadona.es")
 
@@ -229,9 +251,8 @@ async def search_mercadona_cheapest(
                     if _matches_query(product.name, query):
                         all_matches.append(product)
 
-        # Debug info
-        print(
-            f"[DEBUG] Scanned ~{total_products_scanned} products "
+        logger.info(
+            f"Scanned ~{total_products_scanned} products "
             f"across {len(categories)} top-level groups."
         )
 
@@ -243,35 +264,68 @@ async def search_mercadona_cheapest(
         return cheapest, all_matches
 
 
-# ---- Script entrypoint -----------------------------------------------------
+# ---- BaseScraper Implementation -------------------------------------------------
 
 
-async def main():
-    # 🔹 change this line to test different searches:
-    query = "huevos"
+class MercadonaScraper(BaseScraper):
+    """
+    Mercadona scraper implementing BaseScraper interface.
 
-    cheapest, matches = await search_mercadona_cheapest(query)
+    Features:
+    - Uses Playwright's APIRequestContext for reliable API access
+    - Normalizes product names for matching
+    - Extracts brand information
+    - Handles errors gracefully (returns [] on failure)
+    """
 
-    if not matches:
-        print(f"No products found for query: {query!r}")
-        return
+    STORE_NAME = "Mercadona"
+    BASE_URL = "https://tienda.mercadona.es"
 
-    print(f"Found {len(matches)} matching products for {query!r}:\n")
+    def _fetch_products(self, query: str) -> List[Offer]:
+        """
+        Fetch products from Mercadona API.
+        Runs async code in sync context for BaseScraper interface.
+        """
+        if not PLAYWRIGHT_AVAILABLE:
+            self.logger.warning("Playwright not available - returning empty results")
+            return []
 
-    # Show first 10 cheapest matches
-    for p in matches[:10]:
-        print(
-            f"- {p.name} | {p.price} € ({p.price_raw or 'raw N/A'}) "
-            f"| {p.category_name} / {p.subcategory_name}"
-        )
+        # Run async search in sync context
+        _, matches = asyncio.run(search_mercadona_cheapest(query, max_category_groups=5))
 
-    print("\nCheapest option:")
-    c = cheapest
-    print(
-        f"{c.name} | {c.price} € ({c.price_raw or 'raw N/A'}) "
-        f"| {c.category_name} / {c.subcategory_name}"
-    )
+        # Convert MercadonaProduct to Offer (Adapter pattern)
+        offers: List[Offer] = []
+        for product in matches[:20]:  # Limit to top 20 results
+            offer = Offer(
+                store=self.STORE_NAME,
+                name=product.name,
+                brand=extract_brand(product.name),
+                price=product.price,
+                url=f"{self.BASE_URL}/product/{product.slug}" if product.slug else None,
+                normalized_name=normalize_text(product.name),
+            )
+            offers.append(offer)
+
+        return offers
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# Register with factory
+ScraperFactory.register("mercadona", MercadonaScraper)
+
+
+# ---- Convenience Function (backwards compatibility) -----------------------------
+
+
+def scrape_mercadona(query: str) -> List[Offer]:
+    """
+    Convenience function for scraping Mercadona.
+    Used by debug endpoints and legacy code.
+
+    Args:
+        query: Search query
+
+    Returns:
+        List of Offer objects
+    """
+    scraper = MercadonaScraper()
+    return scraper.search(query)

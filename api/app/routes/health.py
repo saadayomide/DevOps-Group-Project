@@ -1,179 +1,105 @@
 """
-Debug endpoints for testing scrapers independently
+Health check endpoints for monitoring and load balancer health probes.
 """
 
-from fastapi import APIRouter, Query
-from typing import Dict, Any
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from pydantic import BaseModel
+from typing import Optional
 import logging
-import sys
-from pathlib import Path
 
-# Add parent directory to path to import scrapers
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from scrapers import scrape_mercadona, scrape_carrefour, scrape_alcampo
+from app.db import get_db
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/debug", tags=["debug"])
+router = APIRouter()
 
 
-@router.get("/scrape/mercadona")
-async def debug_scrape_mercadona(q: str = Query(..., description="Search query")) -> Dict[str, Any]:
+class HealthResponse(BaseModel):
+    """Health check response model"""
+
+    status: str
+    database: Optional[str] = None
+    version: str = "1.0.0"
+
+
+class DetailedHealthResponse(BaseModel):
+    """Detailed health check response"""
+
+    status: str
+    database_status: str
+    database_latency_ms: Optional[float] = None
+    version: str = "1.0.0"
+
+
+@router.get("/health", response_model=HealthResponse)
+async def health_check():
     """
-    Debug endpoint for Mercadona scraper
-    Returns raw offers without any filtering
+    Basic health check endpoint.
+
+    Used by load balancers and container orchestrators
+    to verify the service is running.
+
+    Returns:
+        HealthResponse with status "ok"
     """
-    try:
-        if not q or not q.strip():
-            return {
-                "store": "mercadona",
-                "query": q,
-                "offers": [],
-                "count": 0,
-                "error": "Query cannot be empty"
-            }
-        
-        offers = scrape_mercadona(q)
-        offers_dict = [offer.to_dict() for offer in offers]
-        
-        return {
-            "store": "mercadona",
-            "query": q,
-            "offers": offers_dict,
-            "count": len(offers_dict)
-        }
-        
-    except Exception as e:
-        logger.error(f"Debug endpoint error for Mercadona: {str(e)}")
-        return {
-            "store": "mercadona",
-            "query": q,
-            "offers": [],
-            "count": 0,
-            "error": str(e)
-        }
+    return HealthResponse(status="ok")
 
 
-@router.get("/scrape/carrefour")
-async def debug_scrape_carrefour(q: str = Query(..., description="Search query")) -> Dict[str, Any]:
+@router.get("/health/live")
+async def liveness_probe():
     """
-    Debug endpoint for Carrefour scraper
-    Returns raw offers without any filtering
+    Kubernetes liveness probe endpoint.
+
+    Returns 200 if the application is running.
     """
-    try:
-        if not q or not q.strip():
-            return {
-                "store": "carrefour",
-                "query": q,
-                "offers": [],
-                "count": 0,
-                "error": "Query cannot be empty"
-            }
-        
-        offers = scrape_carrefour(q)
-        offers_dict = [offer.to_dict() for offer in offers]
-        
-        return {
-            "store": "carrefour",
-            "query": q,
-            "offers": offers_dict,
-            "count": len(offers_dict)
-        }
-        
-    except Exception as e:
-        logger.error(f"Debug endpoint error for Carrefour: {str(e)}")
-        return {
-            "store": "carrefour",
-            "query": q,
-            "offers": [],
-            "count": 0,
-            "error": str(e)
-        }
+    return {"status": "ok", "probe": "liveness"}
 
 
-@router.get("/scrape/alcampo")
-async def debug_scrape_alcampo(q: str = Query(..., description="Search query")) -> Dict[str, Any]:
+@router.get("/health/ready")
+async def readiness_probe(db: Session = Depends(get_db)):
     """
-    Debug endpoint for Alcampo scraper
-    Returns raw offers without any filtering
+    Kubernetes readiness probe endpoint.
+
+    Checks if the application can handle requests,
+    including database connectivity.
     """
     try:
-        if not q or not q.strip():
-            return {
-                "store": "alcampo",
-                "query": q,
-                "offers": [],
-                "count": 0,
-                "error": "Query cannot be empty"
-            }
-        
-        offers = scrape_alcampo(q)
-        offers_dict = [offer.to_dict() for offer in offers]
-        
-        return {
-            "store": "alcampo",
-            "query": q,
-            "offers": offers_dict,
-            "count": len(offers_dict)
-        }
-        
+        # Quick DB check
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "probe": "readiness", "database": "connected"}
     except Exception as e:
-        logger.error(f"Debug endpoint error for Alcampo: {str(e)}")
-        return {
-            "store": "alcampo",
-            "query": q,
-            "offers": [],
-            "count": 0,
-            "error": str(e)
-        }
+        logger.error(f"Readiness probe failed: {e}")
+        return {"status": "error", "probe": "readiness", "database": "disconnected"}
 
 
-@router.get("/scrape/all")
-async def debug_scrape_all(q: str = Query(..., description="Search query")) -> Dict[str, Any]:
+@router.get("/health/detailed", response_model=DetailedHealthResponse)
+async def detailed_health_check(db: Session = Depends(get_db)):
     """
-    Debug endpoint to test all scrapers at once
-    Useful for comparing results across stores
+    Detailed health check with database connectivity test.
+
+    Useful for debugging and monitoring dashboards.
     """
+    import time
+
+    # Test database connectivity
+    db_status = "unknown"
+    db_latency = None
+
     try:
-        if not q or not q.strip():
-            return {
-                "query": q,
-                "stores": {},
-                "total_offers": 0,
-                "error": "Query cannot be empty"
-            }
-        
-        mercadona_offers = scrape_mercadona(q)
-        carrefour_offers = scrape_carrefour(q)
-        alcampo_offers = scrape_alcampo(q)
-        
-        result = {
-            "query": q,
-            "stores": {
-                "mercadona": {
-                    "offers": [offer.to_dict() for offer in mercadona_offers],
-                    "count": len(mercadona_offers)
-                },
-                "carrefour": {
-                    "offers": [offer.to_dict() for offer in carrefour_offers],
-                    "count": len(carrefour_offers)
-                },
-                "alcampo": {
-                    "offers": [offer.to_dict() for offer in alcampo_offers],
-                    "count": len(alcampo_offers)
-                }
-            },
-            "total_offers": len(mercadona_offers) + len(carrefour_offers) + len(alcampo_offers)
-        }
-        
-        return result
-        
+        start = time.time()
+        db.execute(text("SELECT 1"))
+        db_latency = (time.time() - start) * 1000  # Convert to ms
+        db_status = "connected"
     except Exception as e:
-        logger.error(f"Debug endpoint error for all scrapers: {str(e)}")
-        return {
-            "query": q,
-            "stores": {},
-            "total_offers": 0,
-            "error": str(e)
-        }
+        logger.error(f"Database health check failed: {e}")
+        db_status = f"error: {str(e)}"
+
+    overall_status = "ok" if db_status == "connected" else "degraded"
+
+    return DetailedHealthResponse(
+        status=overall_status,
+        database_status=db_status,
+        database_latency_ms=db_latency,
+    )

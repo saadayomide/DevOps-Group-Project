@@ -1,14 +1,18 @@
 """
 Scraper API routes for triggering price updates from supermarkets.
+
+These endpoints connect the API layer to the scraper service.
+All endpoints handle errors gracefully and never crash.
 """
 
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+import logging
+
 from app.db import get_db
 from app.services.scraper_service import ScraperService
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +22,14 @@ router = APIRouter()
 class ScrapeRequest(BaseModel):
     """Request body for scraping specific products"""
 
-    queries: Optional[List[str]] = None
+    queries: Optional[List[str]] = Field(
+        None,
+        description="List of product queries to scrape. If empty, scrapes common items.",
+    )
+    store: Optional[str] = Field(
+        None,
+        description="Specific store to scrape. If empty, scrapes all.",
+    )
 
 
 class ScrapeResponse(BaseModel):
@@ -26,32 +37,36 @@ class ScrapeResponse(BaseModel):
 
     status: str
     message: str
-    total_products_updated: int = 0
+    total_offers_found: int = 0
+    total_processed: int = 0
     queries_processed: int = 0
     errors: List[dict] = []
-    products: List[dict] = []
 
 
 # Track if a scrape is in progress
 _scrape_in_progress = False
 
 
-@router.post("/trigger", response_model=ScrapeResponse)
-async def trigger_scrape(request: Optional[ScrapeRequest] = None, db: Session = Depends(get_db)):
+@router.post("/trigger/", response_model=ScrapeResponse)
+async def trigger_scrape(
+    request: Optional[ScrapeRequest] = None,
+    db: Session = Depends(get_db),
+):
     """
-    Trigger a price scrape from Mercadona.
+    Trigger a price scrape from supermarkets.
 
     If no queries are provided, scrapes common grocery items.
     This is a synchronous operation - waits for scraping to complete.
 
-    Note: Requires Playwright browsers to be installed.
-    Run: playwright install chromium
+    Note: For Mercadona live scraping, Playwright browsers must be installed.
+    Carrefour and Alcampo use MVP mock data.
     """
     global _scrape_in_progress
 
     if _scrape_in_progress:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="A scrape operation is already in progress"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A scrape operation is already in progress",
         )
 
     try:
@@ -62,17 +77,19 @@ async def trigger_scrape(request: Optional[ScrapeRequest] = None, db: Session = 
         results = await service.scrape_all_products(queries)
 
         return ScrapeResponse(
-            status="completed",
-            message=f"Successfully processed {results['queries_processed']} queries",
-            total_products_updated=results["total_products_updated"],
-            queries_processed=results["queries_processed"],
-            errors=results["errors"],
-            products=results["products"],
+            status=results.get("status", "completed"),
+            message=f"Processed {results.get('queries_processed', 0)} queries",
+            total_offers_found=results.get("total_offers_found", 0),
+            total_processed=results.get("total_processed", 0),
+            queries_processed=results.get("queries_processed", 0),
+            errors=results.get("errors", []),
         )
+
     except Exception as e:
         logger.error(f"Scrape failed: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Scrape failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Scrape failed: {str(e)}",
         )
     finally:
         _scrape_in_progress = False
@@ -92,23 +109,24 @@ async def _run_background_scrape(db: Session, queries: Optional[List[str]]):
         _scrape_in_progress = False
 
 
-@router.post("/trigger-async", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/trigger-async/", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_scrape_async(
     background_tasks: BackgroundTasks,
     request: Optional[ScrapeRequest] = None,
     db: Session = Depends(get_db),
 ):
     """
-    Trigger a background price scrape from Mercadona.
+    Trigger a background price scrape from supermarkets.
 
     Returns immediately with 202 Accepted.
-    Check /scraper/status for progress.
+    Check /scraper/status/ for progress.
     """
     global _scrape_in_progress
 
     if _scrape_in_progress:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="A scrape operation is already in progress"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A scrape operation is already in progress",
         )
 
     queries = request.queries if request else None
@@ -116,11 +134,11 @@ async def trigger_scrape_async(
 
     return {
         "status": "started",
-        "message": "Scrape started in background. Check /scraper/status for progress.",
+        "message": "Scrape started in background. Check /scraper/status/ for progress.",
     }
 
 
-@router.get("/status")
+@router.get("/status/")
 async def scrape_status():
     """Check if a scrape is currently in progress"""
     return {
@@ -129,32 +147,49 @@ async def scrape_status():
     }
 
 
-@router.post("/search/{query}")
+@router.post("/search/{query}/")
 async def search_product(query: str, db: Session = Depends(get_db)):
     """
-    Search and scrape a specific product from Mercadona.
+    Search and scrape a specific product from all supermarkets.
     Updates the database with found prices.
 
-    Example: POST /scraper/search/leche
+    Example: POST /scraper/search/leche/
     """
     try:
         service = ScraperService(db)
-        results = await service.scrape_mercadona_product(query)
+        results = await service.scrape_product(query)
 
-        if not results:
-            return {
-                "status": "no_results",
-                "message": f"No products found for: {query}",
-                "products": [],
-            }
+        return results
 
-        return {
-            "status": "success",
-            "message": f"Found {len(results)} products",
-            "products": results,
-        }
     except Exception as e:
         logger.error(f"Search failed for {query}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Search failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Search failed: {str(e)}",
+        )
+
+
+@router.post("/search/{query}/{store}/")
+async def search_product_at_store(
+    query: str,
+    store: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Search and scrape a specific product from a specific supermarket.
+    Updates the database with found prices.
+
+    Example: POST /scraper/search/leche/mercadona/
+    """
+    try:
+        service = ScraperService(db)
+        results = await service.scrape_product(query, store)
+
+        return results
+
+    except Exception as e:
+        logger.error(f"Search failed for {query} at {store}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Search failed: {str(e)}",
         )
