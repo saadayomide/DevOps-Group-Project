@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware as FastAPICORSMiddleware
 from app.config import settings
 from app.db import engine, Base
 from app.middleware import LoggingMiddleware
-from app.routes import health, products, supermarkets, prices, compare, scraper, debug 
-from app.routes import refresh, metrics
+from app.routes import health, products, supermarkets, prices, compare, scraper, debug
+from app.routes import refresh, metrics, shopping_lists
 import logging
 
 # Application Insights imports (optional - graceful fallback if not available)
@@ -143,9 +143,12 @@ app.include_router(products.router, prefix=f"{settings.api_prefix}/products", ta
 app.include_router(prices.router, prefix=f"{settings.api_prefix}/prices", tags=["Prices"])
 app.include_router(compare.router, prefix=f"{settings.api_prefix}/compare", tags=["Compare"])
 app.include_router(scraper.router, prefix=f"{settings.api_prefix}/scraper", tags=["Scraper"])
-app.include_router(debug.router, tags=["Debug"]) 
-app.include_router(refresh.router, tags=["Refresh"]) 
-app.include_router(metrics.router, tags=["Metrics"]) 
+app.include_router(debug.router, tags=["Debug"])
+app.include_router(refresh.router, tags=["Refresh"])
+app.include_router(metrics.router, tags=["Metrics"])
+app.include_router(
+    shopping_lists.router, prefix=f"{settings.api_prefix}/shopping-lists", tags=["Shopping Lists"]
+)
 
 
 # Scheduler lifecycle: start on app startup, stop on shutdown

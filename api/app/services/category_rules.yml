@@ -1,44 +1,79 @@
 milk:
   base_terms: ["milk", "leche"]
-  optional_terms: ["integral", "desnatada", "semi", "skimmed", "whole", "0%", "zero"]
-  forbidden_terms: ["powder", "formula", "baby", "plant-based", "vegetal"]
+  optional_terms: ["integral", "desnatada", "semi", "skimmed", "whole", "0%", "zero", "sin lactosa", "lactose-free", "entera", "semidesnatada"]
+  forbidden_terms: ["powder", "polvo", "formula", "baby", "plant-based", "vegetal", "chocolate", "batido", "cafe", "condensada", "evaporada", "instantanea"]
 
 eggs:
-  base_terms: ["egg", "huevo"]
-  optional_terms: ["free-range", "large", "small", "organic"]
-  forbidden_terms: ["albumen", "egg-white"]
+  base_terms: ["egg", "huevo", "huevos"]
+  optional_terms: ["free-range", "large", "small", "organic", "camperos", "ecologicos", "frescos", "docena"]
+  forbidden_terms: ["albumen", "egg-white", "tortilla", "revueltos"]
 
 bread:
   base_terms: ["bread", "pan"]
-  optional_terms: ["whole", "integral", "baguette", "sliced", "brioche"]
-  forbidden_terms: ["biscuit", "cracker", "cookie"]
+  optional_terms: ["whole", "integral", "baguette", "sliced", "brioche", "molde", "blanco", "centeno"]
+  forbidden_terms: ["biscuit", "cracker", "cookie", "galleta", "tostada", "rallado"]
 
 cheese:
   base_terms: ["cheese", "queso"]
-  optional_terms: ["cheddar", "mozzarella", "parmesan", "fresh"]
-  forbidden_terms: ["spread", "cream cheese" ]
+  optional_terms: ["cheddar", "mozzarella", "parmesan", "fresh", "manchego", "fresco", "curado", "semicurado", "gouda", "emmental"]
+  forbidden_terms: ["spread", "fundido", "untar"]
 
 cereal:
   base_terms: ["cereal", "cereales", "cornflakes", "muesli"]
-  optional_terms: ["whole", "sugar-free", "gluten-free"]
-  forbidden_terms: ["bar", "granola bar"]
+  optional_terms: ["whole", "sugar-free", "gluten-free", "integral", "fitness", "special k"]
+  forbidden_terms: ["bar", "granola bar", "barrita"]
 
 juice:
   base_terms: ["juice", "jugo", "zumo"]
-  optional_terms: ["orange", "apple", "no-sugar", "natural"]
-  forbidden_terms: ["concentrate"]
+  optional_terms: ["orange", "apple", "no-sugar", "natural", "naranja", "manzana", "exprimido"]
+  forbidden_terms: ["concentrate", "concentrado", "nectar"]
 
 chicken:
   base_terms: ["chicken", "pollo"]
-  optional_terms: ["breast", "thigh", "organic"]
-  forbidden_terms: ["plant-based", "tofu"]
+  optional_terms: ["breast", "thigh", "organic", "pechuga", "muslo", "entero", "filetes"]
+  forbidden_terms: ["plant-based", "tofu", "vegetal", "nuggets", "empanado"]
 
 beef:
-  base_terms: ["beef", "carne", "res"]
-  optional_terms: ["ground", "minced", "steak"]
-  forbidden_terms: ["vegan", "plant-based"]
+  base_terms: ["beef", "carne", "res", "ternera"]
+  optional_terms: ["ground", "minced", "steak", "picada", "filete", "solomillo", "entrecot"]
+  forbidden_terms: ["vegan", "plant-based", "vegetal", "burger", "hamburguesa"]
 
 yogurt:
   base_terms: ["yogurt", "yoghurt", "yogur"]
-  optional_terms: ["greek", "natural", "zero", "low-fat"]
-  forbidden_terms: ["drinkable", "dessert"]
+  optional_terms: ["greek", "natural", "zero", "low-fat", "griego", "desnatado", "azucarado", "sabor"]
+  forbidden_terms: ["drinkable", "liquido", "postre"]
+
+rice:
+  base_terms: ["rice", "arroz"]
+  optional_terms: ["basmati", "integral", "largo", "redondo", "bomba", "vaporizado"]
+  forbidden_terms: ["leche de arroz", "tortas", "galletas"]
+
+pasta:
+  base_terms: ["pasta", "spaghetti", "macaroni", "macarrones", "espaguetis", "penne", "fusilli"]
+  optional_terms: ["integral", "whole wheat", "fresca", "rellena"]
+  forbidden_terms: ["salsa", "sauce"]
+
+oil:
+  base_terms: ["oil", "aceite"]
+  optional_terms: ["olive", "oliva", "virgen", "extra", "girasol", "sunflower"]
+  forbidden_terms: ["motor", "bronceador"]
+
+butter:
+  base_terms: ["butter", "mantequilla"]
+  optional_terms: ["salted", "unsalted", "con sal", "sin sal", "light"]
+  forbidden_terms: ["cacahuete", "peanut"]
+
+sugar:
+  base_terms: ["sugar", "azucar"]
+  optional_terms: ["white", "brown", "blanco", "moreno", "glass"]
+  forbidden_terms: ["free", "sin"]
+
+coffee:
+  base_terms: ["coffee", "cafe"]
+  optional_terms: ["instant", "ground", "soluble", "molido", "natural", "descafeinado", "capsulas"]
+  forbidden_terms: ["leche", "batido"]
+
+water:
+  base_terms: ["water", "agua"]
+  optional_terms: ["mineral", "sparkling", "con gas", "sin gas", "natural"]
+  forbidden_terms: ["perfume", "colonia"]

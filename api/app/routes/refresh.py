@@ -3,13 +3,15 @@
 Provides an endpoint to trigger a refresh run for a shopping list.
 The endpoint schedules the refresh as a background task and returns 202 Accepted.
 """
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
-from fastapi import status
+
+import asyncio
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Query, status
 from app.config import settings
 import app.db as db_mod
 from app.services.refresh_service import async_refresh_shopping_list
 from app.services import scheduler
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +48,14 @@ async def scheduler_status():
 
 
 @router.post("/scheduler/enable")
-async def scheduler_enable(background_tasks: BackgroundTasks, interval: int = Query(None, description="Optional interval seconds to override env var")):
-    """Enable the in-process scheduler. Optionally override the poll interval for the current run."""
+async def scheduler_enable(
+    background_tasks: BackgroundTasks,
+    interval: int = Query(None, description="Optional interval seconds to override env var"),
+):
+    """Enable the in-process scheduler.
+
+    Optionally override the poll interval for the current run.
+    """
     if interval:
         # Set env var for current process only
         import os

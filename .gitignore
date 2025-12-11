@@ -36,3 +36,8 @@ htmlcov/
 *.db
 *.log
 logs/
+
+# Frontend / Node
+node_modules/
+.npm/
+dist/
