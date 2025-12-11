@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - teamC2
+      - finalsprint
     paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
@@ -45,7 +46,7 @@ jobs:
       - name: Build and push staging image
         run: |
           STAGING_IMAGE="${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.staging-tag }}"
-          
+
           docker build \
             --build-arg VITE_API_BASE="https://${{ secrets.AZURE_BACKEND_STAGING_APP_NAME }}.azurewebsites.net/api/v1" \
             -t "$STAGING_IMAGE" ./frontend
@@ -55,7 +56,7 @@ jobs:
       - name: Build and push production image
         run: |
           PROD_IMAGE="${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.production-tag }}"
-          
+
           docker build \
             --build-arg VITE_API_BASE="https://${{ secrets.AZURE_BACKEND_PRODUCTION_APP_NAME }}.azurewebsites.net/api/v1" \
             -t "$PROD_IMAGE" ./frontend
@@ -67,7 +68,7 @@ jobs:
     needs: build-and-publish-image
     runs-on: ubuntu-latest
     environment: staging
-    if: github.ref == 'refs/heads/teamC2' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/teamC2' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/finalsprint'
 
     steps:
       - name: Log in to Azure
