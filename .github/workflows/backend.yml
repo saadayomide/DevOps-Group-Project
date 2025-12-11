@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - teamC2
+      - finalsprint
     paths:
       - "api/**"
       - "frontend/**"
