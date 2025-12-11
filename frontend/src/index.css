@@ -849,3 +849,233 @@ textarea {
 .comparison-table .totals-row td {
   font-weight: 600;
 }
+
+/* ---------- Comparison Page ---------- */
+.comparison-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.comparison-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.comparison-header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.comparison-card-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.comparison-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: var(--bg-input);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.category-badge {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.best-store-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  text-transform: capitalize;
+}
+
+.comparison-card-body {
+  padding: 1.25rem;
+}
+
+.comparison-card-body .product-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 1rem;
+  line-height: 1.4;
+}
+
+.best-price-display {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.best-price-display .price-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.best-price-display .price-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--success);
+}
+
+.comparison-card-footer {
+  border-top: 1px solid var(--border);
+}
+
+.expand-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0.85rem 1.25rem;
+  background: var(--bg-input);
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.expand-btn:hover {
+  background: var(--bg-dark);
+}
+
+.expand-icon {
+  transition: transform 0.2s ease;
+  font-size: 0.75rem;
+}
+
+.expand-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.offers-list {
+  padding: 0.75rem;
+  background: var(--bg-dark);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.offer-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.15s;
+}
+
+.offer-item.best-offer {
+  background: var(--success-bg);
+  border-color: var(--success);
+}
+
+.offer-rank {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-input);
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.offer-item.best-offer .offer-rank {
+  background: var(--success);
+  color: #000;
+}
+
+.offer-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.offer-store {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.offer-product {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.offer-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.cheapest-tag {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--success);
+  background: rgba(63, 185, 80, 0.2);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin-top: 0.2rem;
+}
+
+@media (max-width: 640px) {
+  .comparison-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .comparison-header h1 {
+    text-align: center;
+  }
+  
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+}
