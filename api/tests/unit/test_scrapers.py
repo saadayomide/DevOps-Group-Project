@@ -331,14 +331,14 @@ class TestScraperIntegration:
         # Verify structure
         for offer in offers:
             assert isinstance(offer, Offer)
-            assert offer.store in ["Mercadona", "Carrefour", "Alcampo"]
+            assert offer.store in ["Mercadona", "Carrefour", "Alcampo", "Lidl", "Dia"]
             assert offer.price >= 0
 
     def test_no_duplicate_offers(self):
         """Offers should be unique within a store (for mock data stores)"""
-        # Only test mock data stores (Carrefour, Alcampo)
+        # Only test mock/fallback data stores
         # Mercadona can have legitimate duplicates (same name, different sizes)
-        manager = ScraperManager(stores=["carrefour", "alcampo"])
+        manager = ScraperManager(stores=["carrefour", "alcampo", "lidl", "dia"])
         offers = manager.get_offers("tomate")
 
         # Group by store

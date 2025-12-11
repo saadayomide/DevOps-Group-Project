@@ -13,9 +13,11 @@ Components:
 - ScraperManager: Facade that unifies all scrapers
 
 Available Scrapers:
-- MercadonaScraper: Full Playwright-based implementation
-- CarrefourScraper: MVP implementation with mock data
-- AlcampoScraper: MVP implementation with mock data
+- MercadonaScraper: Full Playwright-based live implementation
+- CarrefourScraper: HTTP API with fallback
+- AlcampoScraper: HTTP API with fallback
+- LidlScraper: HTTP API with fallback
+- DiaScraper: HTTP API with fallback
 
 Usage:
     from app.services.scrapers import ScraperManager, get_all_offers
@@ -28,7 +30,7 @@ Usage:
     offers = get_all_offers("leche")
 
     # Individual scrapers
-    from app.services.scrapers import scrape_mercadona, scrape_carrefour, scrape_alcampo
+    from app.services.scrapers import scrape_mercadona, scrape_carrefour
     mercadona_offers = scrape_mercadona("huevos")
 """
 
@@ -45,6 +47,8 @@ from .base import (
 from .mercadona import MercadonaScraper, scrape_mercadona
 from .carrefour import CarrefourScraper, scrape_carrefour
 from .alcampo import AlcampoScraper, scrape_alcampo
+from .lidl import LidlScraper, scrape_lidl
+from .dia import DiaScraper, scrape_dia
 
 # Manager (Facade)
 from .manager import (
@@ -64,9 +68,13 @@ __all__ = [
     "MercadonaScraper",
     "CarrefourScraper",
     "AlcampoScraper",
+    "LidlScraper",
+    "DiaScraper",
     "scrape_mercadona",
     "scrape_carrefour",
     "scrape_alcampo",
+    "scrape_lidl",
+    "scrape_dia",
     # Manager
     "ScraperManager",
     "get_scraper_manager",

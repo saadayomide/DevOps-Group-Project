@@ -102,7 +102,7 @@ jobs:
     needs: build-test-and-publish-image
     runs-on: ubuntu-latest
     environment: staging
-    if: github.ref == 'refs/heads/teamC2' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/finalsprint' || github.ref == 'refs/heads/main'
 
     steps:
       - name: Log in to Azure

@@ -27,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .base import BaseScraper, Offer, ScraperFactory
 
 # Import scrapers to register them with factory
-from . import mercadona, carrefour, alcampo  # noqa: F401
+from . import mercadona, carrefour, alcampo, lidl, dia  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

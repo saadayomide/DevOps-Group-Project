@@ -1,5 +1,5 @@
 """
-Alcampo Spain scraper implementation.
+Dia Spain scraper implementation.
 
 Uses Playwright to intercept API responses for reliable data extraction.
 Implements BaseScraper interface for unified data acquisition layer.
@@ -20,7 +20,7 @@ try:
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
-    logger.warning("Playwright not available - Alcampo live scraping disabled")
+    logger.warning("Playwright not available - Dia live scraping disabled")
 
 
 def _extract_price_from_text(text: str) -> Optional[float]:
@@ -34,19 +34,28 @@ def _extract_price_from_text(text: str) -> Optional[float]:
 
 def _extract_price(product: dict) -> Optional[float]:
     try:
-        for field in ["price", "unitPrice", "currentPrice"]:
+        prices = product.get("prices", {})
+        if isinstance(prices, dict):
+            for field in ["price", "active_price", "sale_price"]:
+                val = prices.get(field)
+                if val is not None:
+                    if isinstance(val, dict):
+                        return float(val.get("value") or val.get("amount") or 0)
+                    return float(val)
+
+        for field in ["price", "priceValue", "unitPrice"]:
             val = product.get(field)
             if val is not None:
                 if isinstance(val, (int, float)):
                     return float(val)
-                if isinstance(val, dict):
-                    return float(val.get("value") or val.get("amount") or 0)
+                if isinstance(val, str):
+                    return _extract_price_from_text(val)
         return None
     except (ValueError, TypeError):
         return None
 
 
-async def _search_alcampo_playwright(query: str, max_results: int = 20) -> List[dict]:
+async def _search_dia_playwright(query: str, max_results: int = 20) -> List[dict]:
     if not PLAYWRIGHT_AVAILABLE:
         return []
 
@@ -78,44 +87,49 @@ async def _search_alcampo_playwright(query: str, max_results: int = 20) -> List[
 
         try:
             await page.goto(
-                f"https://www.compraonline.alcampo.es/search?q={query}",
-                wait_until="networkidle",
-                timeout=30000,
+                f"https://www.dia.es/search?q={query}", wait_until="networkidle", timeout=30000
             )
             await page.wait_for_timeout(2000)
 
             for data in api_responses:
                 if isinstance(data, dict):
                     prods = (
-                        data.get("products", []) or data.get("results", []) or data.get("items", [])
+                        data.get("products", [])
+                        or data.get("search_items", [])
+                        or data.get("results", [])
                     )
                     products.extend(prods)
 
         except Exception as e:
-            logger.warning(f"Playwright Alcampo error: {e}")
+            logger.warning(f"Playwright Dia error: {e}")
         finally:
             await browser.close()
 
     return products[:max_results]
 
 
-class AlcampoScraper(BaseScraper):
-    STORE_NAME = "Alcampo"
-    BASE_URL = "https://www.compraonline.alcampo.es"
+class DiaScraper(BaseScraper):
+    STORE_NAME = "Dia"
+    BASE_URL = "https://www.dia.es"
 
     def _fetch_products(self, query: str) -> List[Offer]:
-        self.logger.info(f"Searching Alcampo for: {query}")
+        self.logger.info(f"Searching Dia for: {query}")
 
         if not PLAYWRIGHT_AVAILABLE:
             return self._fallback_search(query)
 
         try:
-            products = asyncio.run(_search_alcampo_playwright(query))
+            products = asyncio.run(_search_dia_playwright(query))
 
             if products:
                 offers = []
                 for product in products:
-                    name = product.get("name") or product.get("displayName") or ""
+                    name = (
+                        product.get("display_name")
+                        or product.get("name")
+                        or product.get("title")
+                        or ""
+                    )
                     if not name:
                         continue
 
@@ -123,15 +137,11 @@ class AlcampoScraper(BaseScraper):
                     if not price or price <= 0:
                         continue
 
-                    brand = product.get("brand") or extract_brand(name)
-                    if brand and brand.lower() == "alcampo":
-                        brand = "Auchan"
-
                     offers.append(
                         Offer(
                             store=self.STORE_NAME,
                             name=name,
-                            brand=brand,
+                            brand=product.get("brand") or extract_brand(name),
                             price=float(price),
                             url=product.get("url") or f"{self.BASE_URL}/search?q={query}",
                             image_url=product.get("image"),
@@ -140,33 +150,35 @@ class AlcampoScraper(BaseScraper):
                     )
 
                 if offers:
-                    self.logger.info(f"Alcampo returned {len(offers)} live products")
+                    self.logger.info(f"Dia returned {len(offers)} live products")
                     return offers
 
             return self._fallback_search(query)
 
         except Exception as e:
-            self.logger.warning(f"Alcampo error: {e}")
+            self.logger.warning(f"Dia error: {e}")
             return self._fallback_search(query)
 
     def _fallback_search(self, query: str) -> List[Offer]:
-        self.logger.info("Using Alcampo fallback data")
+        self.logger.info("Using Dia fallback data")
         fallback_data = {
             "leche": [
-                ("Leche entera Auchan 1L", 0.82, "Auchan"),
-                ("Leche semidesnatada Puleva 1L", 1.15, "Puleva"),
-                ("Leche sin lactosa Auchan 1L", 1.25, "Auchan"),
-                ("Leche entera Asturiana 1L", 1.09, "Asturiana"),
+                ("Leche entera Dia 1L", 0.75, "Dia"),
+                ("Leche semidesnatada Dia 1L", 0.72, "Dia"),
+                ("Leche sin lactosa Dia 1L", 1.09, "Dia"),
+                ("Leche Puleva 1L", 1.19, "Puleva"),
             ],
-            "huevos": [("Huevos frescos L Auchan 12 unidades", 2.35, "Auchan")],
-            "pan": [("Pan de molde Auchan 450g", 1.05, "Auchan")],
-            "arroz": [("Arroz redondo Auchan 1kg", 1.25, "Auchan")],
-            "aceite": [("Aceite oliva virgen extra Auchan 1L", 6.79, "Auchan")],
-            "yogur": [("Yogur natural Auchan pack 4", 1.05, "Auchan")],
-            "pasta": [("Espaguetis Auchan 500g", 0.75, "Auchan")],
-            "pollo": [("Pechuga pollo Auchan 500g", 4.65, "Auchan")],
-            "tomate": [("Tomate frito Auchan 400g", 0.85, "Auchan")],
-            "agua": [("Agua mineral Auchan 6x1.5L", 1.55, "Auchan")],
+            "huevos": [("Huevos frescos M Dia docena", 2.19, "Dia")],
+            "pan": [("Pan de molde Dia 450g", 0.89, "Dia")],
+            "arroz": [("Arroz redondo Dia 1kg", 1.05, "Dia")],
+            "aceite": [("Aceite oliva virgen extra Dia 1L", 5.99, "Dia")],
+            "yogur": [("Yogur natural Dia pack 4", 0.89, "Dia")],
+            "pasta": [("Espaguetis Dia 500g", 0.59, "Dia")],
+            "pollo": [("Pechuga pollo fileteada 500g", 4.29, None)],
+            "tomate": [("Tomate frito Dia 400g", 0.69, "Dia")],
+            "agua": [("Agua mineral Dia 6x1.5L", 1.55, "Dia")],
+            "cafe": [("Café molido Dia 250g", 1.95, "Dia")],
+            "cerveza": [("Cerveza Dia pack 6", 2.19, "Dia")],
         }
 
         query_lower = normalize_text(query)
@@ -203,8 +215,8 @@ class AlcampoScraper(BaseScraper):
         return offers
 
 
-ScraperFactory.register("alcampo", AlcampoScraper)
+ScraperFactory.register("dia", DiaScraper)
 
 
-def scrape_alcampo(query: str) -> List[Offer]:
-    return AlcampoScraper().search(query)
+def scrape_dia(query: str) -> List[Offer]:
+    return DiaScraper().search(query)
