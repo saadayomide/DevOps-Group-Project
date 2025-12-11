@@ -36,10 +36,12 @@ A full-stack price comparison application that helps users find the best prices 
 - PostgreSQL database
 
 ### DevOps
-- GitHub Actions CI/CD
+- GitHub Actions CI/CD (primary)
+- Azure DevOps Pipelines (alternative - see `azure-pipelines.yml`)
 - Azure Container Registry (ACR)
 - Azure App Service (containers)
 - Docker containerization
+- Application Insights monitoring
 
 ## Quick Start (Local Development)
 
@@ -197,8 +199,17 @@ pytest tests/ -v --cov=app
 
 ```bash
 cd frontend
-npm test
+npm test              # Run tests once
+npm run test:watch    # Watch mode for development
+npm run test:coverage # With coverage report
 ```
+
+The frontend tests use Vitest + React Testing Library and cover:
+- Shopping list management (add/remove items)
+- Store selection
+- Price comparison functionality
+- Loading and error states
+- API integration
 
 ## Environment Variables
 
@@ -224,7 +235,9 @@ npm test
 
 ## Documentation
 
-- [DevOps Guide](docs/DEVOPS_GUIDE.md) - CI/CD and infrastructure setup
+- [DevOps Guide](docs/DEVOPS_GUIDE.md) - CI/CD and infrastructure setup (GitHub Actions & Azure DevOps)
+- [Monitoring Guide](docs/MONITORING.md) - Application Insights setup and dashboard configuration
+- [SLO Documentation](docs/SLO.md) - Service Level Objectives
 - [API Testing](api/docs/TESTING.md) - Backend testing guide
 - [Architecture](api/docs/ARCHITECTURE.md) - System architecture details
 
