@@ -118,15 +118,31 @@ jobs:
           APPINSIGHTS_CONNECTION_STRING: ${{ secrets.APPINSIGHTS_CONNECTION_STRING }}
         with:
           inlineScript: |
-            if [ -n "$APPINSIGHTS_CONNECTION_STRING" ]; then
-              RG=$(az webapp show --name "$APP_NAME" --query resourceGroup -o tsv)
-              az webapp config appsettings set \
-                --name "$APP_NAME" \
-                --resource-group "$RG" \
-                --settings "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONNECTION_STRING"
-            else
+            if [ -z "$APPINSIGHTS_CONNECTION_STRING" ]; then
               echo "APPINSIGHTS_CONNECTION_STRING secret not configured; skipping app settings"
+              exit 0
             fi
+
+            if [ -z "$APP_NAME" ]; then
+              echo "AZURE_BACKEND_STAGING_APP_NAME secret not configured; skipping app settings"
+              exit 0
+            fi
+
+            # Try to find the resource group
+            RG=$(az webapp show --name "$APP_NAME" --query resourceGroup -o tsv 2>/dev/null || echo "")
+
+            if [ -z "$RG" ]; then
+              echo "Warning: Could not find web app '$APP_NAME'. Skipping Application Insights configuration."
+              echo "This may be expected if the app hasn't been created yet."
+              exit 0
+            fi
+
+            echo "Configuring Application Insights for app '$APP_NAME' in resource group '$RG'"
+            az webapp config appsettings set \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --settings "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONNECTION_STRING" \
+              || echo "Warning: Failed to set Application Insights connection string"
 
       - name: Deploy to Azure Web App (staging)
         uses: azure/webapps-deploy@v3
@@ -154,15 +170,31 @@ jobs:
           APPINSIGHTS_CONNECTION_STRING: ${{ secrets.APPINSIGHTS_CONNECTION_STRING }}
         with:
           inlineScript: |
-            if [ -n "$APPINSIGHTS_CONNECTION_STRING" ]; then
-              RG=$(az webapp show --name "$APP_NAME" --query resourceGroup -o tsv)
-              az webapp config appsettings set \
-                --name "$APP_NAME" \
-                --resource-group "$RG" \
-                --settings "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONNECTION_STRING"
-            else
+            if [ -z "$APPINSIGHTS_CONNECTION_STRING" ]; then
               echo "APPINSIGHTS_CONNECTION_STRING secret not configured; skipping app settings"
+              exit 0
             fi
+
+            if [ -z "$APP_NAME" ]; then
+              echo "AZURE_BACKEND_PRODUCTION_APP_NAME secret not configured; skipping app settings"
+              exit 0
+            fi
+
+            # Try to find the resource group
+            RG=$(az webapp show --name "$APP_NAME" --query resourceGroup -o tsv 2>/dev/null || echo "")
+
+            if [ -z "$RG" ]; then
+              echo "Warning: Could not find web app '$APP_NAME'. Skipping Application Insights configuration."
+              echo "This may be expected if the app hasn't been created yet."
+              exit 0
+            fi
+
+            echo "Configuring Application Insights for app '$APP_NAME' in resource group '$RG'"
+            az webapp config appsettings set \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --settings "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONNECTION_STRING" \
+              || echo "Warning: Failed to set Application Insights connection string"
 
       - name: Deploy to Azure Web App (production)
         uses: azure/webapps-deploy@v3
