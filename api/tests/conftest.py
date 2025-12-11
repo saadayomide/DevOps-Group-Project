@@ -7,7 +7,6 @@ import os
 import tempfile
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
 # Set test environment BEFORE importing any app modules
@@ -182,6 +181,10 @@ def test_client(test_db):
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
+
+    # Import TestClient lazily so unit-only tests that don't require FastAPI
+    # can be collected and run without FastAPI installed in the environment.
+    from fastapi.testclient import TestClient
 
     with TestClient(app) as client:
         yield client

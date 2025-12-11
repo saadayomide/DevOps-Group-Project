@@ -1,0 +1,44 @@
+milk:
+  base_terms: ["milk", "leche"]
+  optional_terms: ["integral", "desnatada", "semi", "skimmed", "whole", "0%", "zero"]
+  forbidden_terms: ["powder", "formula", "baby", "plant-based", "vegetal"]
+
+eggs:
+  base_terms: ["egg", "huevo"]
+  optional_terms: ["free-range", "large", "small", "organic"]
+  forbidden_terms: ["albumen", "egg-white"]
+
+bread:
+  base_terms: ["bread", "pan"]
+  optional_terms: ["whole", "integral", "baguette", "sliced", "brioche"]
+  forbidden_terms: ["biscuit", "cracker", "cookie"]
+
+cheese:
+  base_terms: ["cheese", "queso"]
+  optional_terms: ["cheddar", "mozzarella", "parmesan", "fresh"]
+  forbidden_terms: ["spread", "cream cheese" ]
+
+cereal:
+  base_terms: ["cereal", "cereales", "cornflakes", "muesli"]
+  optional_terms: ["whole", "sugar-free", "gluten-free"]
+  forbidden_terms: ["bar", "granola bar"]
+
+juice:
+  base_terms: ["juice", "jugo", "zumo"]
+  optional_terms: ["orange", "apple", "no-sugar", "natural"]
+  forbidden_terms: ["concentrate"]
+
+chicken:
+  base_terms: ["chicken", "pollo"]
+  optional_terms: ["breast", "thigh", "organic"]
+  forbidden_terms: ["plant-based", "tofu"]
+
+beef:
+  base_terms: ["beef", "carne", "res"]
+  optional_terms: ["ground", "minced", "steak"]
+  forbidden_terms: ["vegan", "plant-based"]
+
+yogurt:
+  base_terms: ["yogurt", "yoghurt", "yogur"]
+  optional_terms: ["greek", "natural", "zero", "low-fat"]
+  forbidden_terms: ["drinkable", "dessert"]

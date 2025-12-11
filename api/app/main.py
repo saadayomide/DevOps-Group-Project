@@ -11,6 +11,7 @@ from app.config import settings
 from app.db import engine, Base
 from app.middleware import LoggingMiddleware
 from app.routes import health, products, supermarkets, prices, compare, scraper, debug 
+from app.routes import refresh, metrics
 import logging
 
 # Application Insights imports (optional - graceful fallback if not available)
@@ -143,6 +144,35 @@ app.include_router(prices.router, prefix=f"{settings.api_prefix}/prices", tags=[
 app.include_router(compare.router, prefix=f"{settings.api_prefix}/compare", tags=["Compare"])
 app.include_router(scraper.router, prefix=f"{settings.api_prefix}/scraper", tags=["Scraper"])
 app.include_router(debug.router, tags=["Debug"]) 
+app.include_router(refresh.router, tags=["Refresh"]) 
+app.include_router(metrics.router, tags=["Metrics"]) 
+
+
+# Scheduler lifecycle: start on app startup, stop on shutdown
+@app.on_event("startup")
+async def _start_scheduler():
+    try:
+        import asyncio
+        from app.services import scheduler
+        import os
+
+        # Allow disabling the in-process scheduler via env var (useful for tests)
+        enabled = os.getenv("REFRESH_SCHEDULER_ENABLED", "1")
+        if enabled != "0":
+            loop = asyncio.get_event_loop()
+            scheduler.start_scheduler(loop)
+    except Exception as e:
+        logger.warning(f"Could not start scheduler: {e}")
+
+
+@app.on_event("shutdown")
+async def _stop_scheduler():
+    try:
+        from app.services import scheduler
+
+        await scheduler.stop_scheduler()
+    except Exception as e:
+        logger.warning(f"Error stopping scheduler: {e}")
 
 
 @app.get("/")
