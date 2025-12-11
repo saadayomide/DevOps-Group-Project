@@ -38,6 +38,12 @@ export default function PageLayout({ children }) {
             Shopping
           </NavLink>
           <NavLink
+            to="/comparison"
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+          >
+            Compare Prices
+          </NavLink>
+          <NavLink
             to="/profile"
             className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >

@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ShoppingPage from './pages/ShoppingPage'
 import ProfilePage from './pages/ProfilePage'
+import ComparisonPage from './pages/ComparisonPage'
 import PageLayout from './layouts/PageLayout'
 import { useAuth } from './context/AuthContext'
 
@@ -24,6 +25,16 @@ export default function App() {
           <PrivateRoute>
             <PageLayout>
               <ShoppingPage />
+            </PageLayout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/comparison"
+        element={
+          <PrivateRoute>
+            <PageLayout>
+              <ComparisonPage />
             </PageLayout>
           </PrivateRoute>
         }

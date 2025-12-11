@@ -28,3 +28,17 @@ export function searchProducts(query, limit = 10) {
   if (!query || query.length < 2) return Promise.resolve([])
   return request(`/products/?q=${encodeURIComponent(query)}&limit=${limit}`)
 }
+
+// Get comparison data - uses the existing compare endpoint
+export async function getComparison() {
+  // For now, return empty until user makes a comparison
+  // The actual comparison happens via compareBasket
+  return { comparisons: [] }
+}
+
+// Refresh comparison - uses the compare endpoint with stored items
+export async function refreshComparison() {
+  // This would need to store/retrieve the user's shopping list
+  // For now, return empty
+  return { comparisons: [] }
+}

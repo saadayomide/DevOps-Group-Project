@@ -1,0 +1,255 @@
+# Azure DevOps CI/CD Pipeline for ShopSmart
+# This is an alternative to GitHub Actions for teams that prefer Azure DevOps
+#
+# Setup Instructions:
+# 1. Create a new pipeline in Azure DevOps linked to this repo
+# 2. Create variable groups: 'shopsmart-staging' and 'shopsmart-production'
+# 3. Add service connections for ACR and Azure App Service
+# 4. Configure branch policies for PR validation
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+      - teamC2
+  paths:
+    include:
+      - api/**
+      - frontend/**
+      - azure-pipelines.yml
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - api/**
+      - frontend/**
+
+variables:
+  acrRegistry: 'shopsmartacr.azurecr.io'
+  backendImageName: 'shopsmart-backend'
+  frontendImageName: 'shopsmart-frontend'
+  pythonVersion: '3.11'
+  nodeVersion: '20.x'
+
+stages:
+  # ===== BUILD & TEST STAGE =====
+  - stage: BuildAndTest
+    displayName: 'Build & Test'
+    jobs:
+      - job: BackendTests
+        displayName: 'Backend Tests (pytest)'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+            displayName: 'Use Python $(pythonVersion)'
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+              pip install pytest pytest-cov pytest-asyncio httpx
+            workingDirectory: $(System.DefaultWorkingDirectory)/api
+            displayName: 'Install dependencies'
+
+          - script: |
+              pytest tests -v --cov=app --cov-report=xml --cov-report=html --junitxml=test-results.xml
+            workingDirectory: $(System.DefaultWorkingDirectory)/api
+            displayName: 'Run pytest'
+            env:
+              SQL_CONNECTION_STRING: 'sqlite:///:memory:'
+              APP_ENV: 'test'
+
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '**/test-results.xml'
+              testRunTitle: 'Backend Tests'
+            condition: succeededOrFailed()
+            displayName: 'Publish Test Results'
+
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: '$(System.DefaultWorkingDirectory)/api/coverage.xml'
+              reportDirectory: '$(System.DefaultWorkingDirectory)/api/htmlcov'
+            condition: succeededOrFailed()
+            displayName: 'Publish Code Coverage'
+
+      - job: FrontendTests
+        displayName: 'Frontend Tests (vitest)'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '$(nodeVersion)'
+            displayName: 'Use Node.js $(nodeVersion)'
+
+          - script: npm ci
+            workingDirectory: $(System.DefaultWorkingDirectory)/frontend
+            displayName: 'Install dependencies'
+
+          - script: npm test
+            workingDirectory: $(System.DefaultWorkingDirectory)/frontend
+            displayName: 'Run frontend tests'
+
+          - script: npm run build
+            workingDirectory: $(System.DefaultWorkingDirectory)/frontend
+            displayName: 'Build frontend'
+            env:
+              VITE_API_BASE: 'https://example.invalid/api/v1'
+
+  # ===== BUILD DOCKER IMAGES =====
+  - stage: BuildImages
+    displayName: 'Build Docker Images'
+    dependsOn: BuildAndTest
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - job: BuildBackendImage
+        displayName: 'Build Backend Image'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: Docker@2
+            inputs:
+              containerRegistry: 'ACR-ServiceConnection'
+              repository: '$(backendImageName)'
+              command: 'buildAndPush'
+              Dockerfile: '$(System.DefaultWorkingDirectory)/api/Dockerfile'
+              buildContext: '$(System.DefaultWorkingDirectory)/api'
+              tags: |
+                $(Build.SourceVersion)
+                latest
+            displayName: 'Build and push backend image'
+
+      - job: BuildFrontendImage
+        displayName: 'Build Frontend Image'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: Docker@2
+            inputs:
+              containerRegistry: 'ACR-ServiceConnection'
+              repository: '$(frontendImageName)'
+              command: 'buildAndPush'
+              Dockerfile: '$(System.DefaultWorkingDirectory)/frontend/Dockerfile'
+              buildContext: '$(System.DefaultWorkingDirectory)/frontend'
+              tags: |
+                $(Build.SourceVersion)
+                latest
+            displayName: 'Build and push frontend image'
+
+  # ===== DEPLOY TO STAGING =====
+  - stage: DeployStaging
+    displayName: 'Deploy to Staging'
+    dependsOn: BuildImages
+    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/teamC2'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/main')))
+    variables:
+      - group: shopsmart-staging
+    jobs:
+      - deployment: DeployBackendStaging
+        displayName: 'Deploy Backend to Staging'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'staging'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureWebAppContainer@1
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    appName: '$(BACKEND_APP_NAME)'
+                    containers: '$(acrRegistry)/$(backendImageName):$(Build.SourceVersion)'
+                  displayName: 'Deploy backend to staging'
+
+                - task: AzureAppServiceSettings@1
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    appName: '$(BACKEND_APP_NAME)'
+                    appSettings: |
+                      [
+                        {
+                          "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                          "value": "$(APPINSIGHTS_CONNECTION_STRING)",
+                          "slotSetting": false
+                        }
+                      ]
+                  displayName: 'Configure Application Insights'
+
+      - deployment: DeployFrontendStaging
+        displayName: 'Deploy Frontend to Staging'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'staging'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureWebAppContainer@1
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    appName: '$(FRONTEND_APP_NAME)'
+                    containers: '$(acrRegistry)/$(frontendImageName):$(Build.SourceVersion)'
+                  displayName: 'Deploy frontend to staging'
+
+  # ===== DEPLOY TO PRODUCTION =====
+  - stage: DeployProduction
+    displayName: 'Deploy to Production'
+    dependsOn: DeployStaging
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    variables:
+      - group: shopsmart-production
+    jobs:
+      - deployment: DeployBackendProduction
+        displayName: 'Deploy Backend to Production'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureWebAppContainer@1
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    appName: '$(BACKEND_APP_NAME)'
+                    containers: '$(acrRegistry)/$(backendImageName):$(Build.SourceVersion)'
+                  displayName: 'Deploy backend to production'
+
+                - task: AzureAppServiceSettings@1
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    appName: '$(BACKEND_APP_NAME)'
+                    appSettings: |
+                      [
+                        {
+                          "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                          "value": "$(APPINSIGHTS_CONNECTION_STRING)",
+                          "slotSetting": false
+                        }
+                      ]
+                  displayName: 'Configure Application Insights'
+
+      - deployment: DeployFrontendProduction
+        displayName: 'Deploy Frontend to Production'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureWebAppContainer@1
+                  inputs:
+                    azureSubscription: 'Azure-ServiceConnection'
+                    appName: '$(FRONTEND_APP_NAME)'
+                    containers: '$(acrRegistry)/$(frontendImageName):$(Build.SourceVersion)'
+                  displayName: 'Deploy frontend to production'
