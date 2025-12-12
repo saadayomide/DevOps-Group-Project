@@ -6,6 +6,7 @@ within `REFRESH_THRESHOLD_SECONDS` (both configurable via environment variables)
 
 For production, consider using an external scheduler or worker (Celery/RQ/K8s CronJob).
 """
+
 import asyncio
 import os
 import logging
@@ -26,15 +27,26 @@ _stop_event: Optional[asyncio.Event] = None
 
 
 async def _scheduler_loop():
-    logger.info("Scheduler loop started (interval=%s s, threshold=%s s)", REFRESH_INTERVAL_SECONDS, REFRESH_THRESHOLD_SECONDS)
+    logger.info(
+        "Scheduler loop started (interval=%s s, threshold=%s s)",
+        REFRESH_INTERVAL_SECONDS,
+        REFRESH_THRESHOLD_SECONDS,
+    )
     while not _stop_event.is_set():
         try:
             db = SessionLocal()
             try:
-                cutoff = datetime.datetime.utcnow() - datetime.timedelta(seconds=REFRESH_THRESHOLD_SECONDS)
-                lists = db.query(ShoppingList).filter(
-                    (ShoppingList.last_refreshed == None) | (ShoppingList.last_refreshed < cutoff)
-                ).all()
+                cutoff = datetime.datetime.utcnow() - datetime.timedelta(
+                    seconds=REFRESH_THRESHOLD_SECONDS
+                )
+                lists = (
+                    db.query(ShoppingList)
+                    .filter(
+                        (ShoppingList.last_refreshed.is_(None))
+                        | (ShoppingList.last_refreshed < cutoff)
+                    )
+                    .all()
+                )
                 if lists:
                     logger.info("Scheduler found %s shopping lists to refresh", len(lists))
                 for sl in lists:
@@ -68,7 +80,7 @@ def start_scheduler(loop: asyncio.AbstractEventLoop):
 
 
 async def stop_scheduler():
-    global _scheduler_task, _stop_event
+    global _scheduler_task
     if not _scheduler_task:
         return
     _stop_event.set()

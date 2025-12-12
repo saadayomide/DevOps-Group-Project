@@ -99,9 +99,6 @@ async def trigger_scrape(
 @router.post("/refresh", status_code=status.HTTP_202_ACCEPTED)
 async def refresh_prices(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Background refresh endpoint to resync product data."""
-
-    global _scrape_in_progress
-
     if _scrape_in_progress:
         telemetry_client.record_refresh(success=False)
         raise HTTPException(
@@ -151,8 +148,6 @@ async def trigger_scrape_async(
     Returns immediately with 202 Accepted.
     Check /scraper/status/ for progress.
     """
-    global _scrape_in_progress
-
     if _scrape_in_progress:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

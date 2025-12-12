@@ -113,7 +113,7 @@ POST /api/v1/compare/
 
 The application is deployed to Azure using GitHub Actions:
 
-- **Staging**: Deploys on push to `teamC2` branch
+- **Staging**: Deploys on push to `finalsprint` or `teamC2` branch
 - **Production**: Deploys on push to `main` branch
 
 ### Deployed URLs
@@ -126,7 +126,7 @@ The application is deployed to Azure using GitHub Actions:
 ### CI/CD Pipeline
 
 ```
-Push to teamC2/main
+Push to finalsprint/teamC2/main
        │
        ▼
 ┌─────────────────┐
@@ -228,7 +228,7 @@ The frontend tests use Vitest + React Testing Library and cover:
 
 ## Contributing
 
-1. Create a feature branch from `teamC2`
+1. Create a feature branch from `finalsprint` or `main`
 2. Make your changes
 3. Run tests locally
 4. Create a pull request
