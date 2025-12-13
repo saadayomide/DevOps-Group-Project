@@ -10,9 +10,10 @@ function ComparisonPage() {
   const [stores, setStores] = useState([]);
   const [selectedStores, setSelectedStores] = useState([]);
   const [items, setItems] = useState([]);
-  
+
   // Form state for new item
   const [newItem, setNewItem] = useState({
+    name: '',
     category: '',
     brand: '',
     variants: [],
@@ -63,7 +64,7 @@ function ComparisonPage() {
     { id: 3, name: 'Lidl' },
     { id: 4, name: 'Alcampo' },
     { id: 5, name: 'Dia' },
-    { id: 6, name: 'El Corte Inglés' },
+    { id: 6, name: 'Gadis' },
   ];
 
   useEffect(() => {
@@ -77,6 +78,7 @@ function ComparisonPage() {
         // Ensure each item has required fields with defaults
         const validatedItems = parsed.map(item => ({
           id: item.id || Date.now(),
+          name: item.name || null,
           category: item.category || '',
           brand: item.brand || null,
           variants: Array.isArray(item.variants) ? item.variants : [],
@@ -170,8 +172,8 @@ function ComparisonPage() {
   };
 
   const validateItem = () => {
-    if (!newItem.category) {
-      setError('Please select a category');
+    if (!newItem.name && !newItem.category) {
+      setError('Please enter a product name or select a category');
       return false;
     }
     if (newItem.quantity < 1) {
@@ -183,12 +185,13 @@ function ComparisonPage() {
 
   const handleAddItem = (e) => {
     e.preventDefault();
-    
+
     if (!validateItem()) return;
 
     const itemToAdd = {
       id: Date.now(),
-      category: newItem.category,
+      name: newItem.name?.trim() || null,
+      category: newItem.category || null,
       brand: newItem.brand?.trim() || null,
       variants: newItem.variants || [],
       quantity: newItem.quantity,
@@ -198,9 +201,10 @@ function ComparisonPage() {
     const updatedItems = [...items, itemToAdd];
     setItems(updatedItems);
     localStorage.setItem('comparisonItems', JSON.stringify(updatedItems));
-    
+
     // Reset form
     setNewItem({
+      name: '',
       category: '',
       brand: '',
       variants: [],
@@ -235,15 +239,16 @@ function ComparisonPage() {
     try {
       setLoading(true);
       setError(null);
-      
+
       const itemsForBackend = items.map(item => ({
+        name: item.name,
         category: item.category,
         brand: item.brand,
         variants: item.variants || [],
         quantity: item.quantity,
         unit: item.unit
       }));
-      
+
       const data = await compareBasket(itemsForBackend, selectedStores);
       const comparisons = transformCompareResponse(data);
       setComparisonData(comparisons);
@@ -263,12 +268,12 @@ function ComparisonPage() {
 
   const transformCompareResponse = (data) => {
     if (!data || !data.results) return [];
-    
+
     return data.results.map(result => {
       const offers = result.prices || [];
       const sortedOffers = [...offers].sort((a, b) => (a.price || Infinity) - (b.price || Infinity));
       const bestOffer = sortedOffers[0];
-      
+
       return {
         category_name: result.item || result.product_name || 'Unknown',
         best_store: bestOffer?.store || 'N/A',
@@ -295,8 +300,8 @@ function ComparisonPage() {
   };
 
   const toggleStore = (storeName) => {
-    setSelectedStores(prev => 
-      prev.includes(storeName) 
+    setSelectedStores(prev =>
+      prev.includes(storeName)
         ? prev.filter(s => s !== storeName)
         : [...prev, storeName]
     );
@@ -322,6 +327,7 @@ function ComparisonPage() {
       lidl: '#0050aa',
       alcampo: '#e30613',
       dia: '#e30613',
+      gadis: '#e74c3c',
       'el corte inglés': '#00a651',
       eroski: '#ff6600',
       aldi: '#00005f',
@@ -350,11 +356,27 @@ function ComparisonPage() {
       {/* Shopping List Input Form */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <h2>Add Item to Compare</h2>
-        
+
         <form onSubmit={handleAddItem} className="item-form">
+          {/* Product Name Input */}
+          <div className="field">
+            <label htmlFor="productName">Product Name</label>
+            <input
+              type="text"
+              id="productName"
+              value={newItem.name}
+              onChange={(e) => handleInputChange('name', e.target.value)}
+              placeholder="e.g., Leche entera, Huevos frescos, Pan de molde"
+              autoComplete="off"
+            />
+            <small className="field-hint">
+              Enter a specific product name for best results, or use category below
+            </small>
+          </div>
+
           {/* Category Dropdown */}
           <div className="field">
-            <label htmlFor="category">Category *</label>
+            <label htmlFor="category">Category{!newItem.name ? ' *' : ' (optional)'}</label>
             <select
               id="category"
               value={newItem.category}
@@ -383,7 +405,7 @@ function ComparisonPage() {
           {/* Variants Section */}
           <div className="field">
             <label>Variants / Preferences</label>
-            
+
             {/* Quick variant checkboxes */}
             {newItem.category && (
               <div className="variant-checkboxes">
@@ -399,7 +421,7 @@ function ComparisonPage() {
                 ))}
               </div>
             )}
-            
+
             {/* Custom variant input */}
             <div className="variant-input-row">
               <input
@@ -455,7 +477,7 @@ function ComparisonPage() {
                 onChange={(e) => handleInputChange('quantity', parseInt(e.target.value) || 1)}
               />
             </div>
-            
+
             <div className="field" style={{ flex: 1 }}>
               <label htmlFor="unit">Unit</label>
               <select
@@ -487,13 +509,18 @@ function ComparisonPage() {
             </button>
           )}
         </div>
-        
+
         {items.length > 0 ? (
           <div className="shopping-list">
             {items.map((item) => (
               <div key={item.id} className="shopping-list-item">
                 <div className="item-info">
-                  <span className="item-category">{item.category}</span>
+                  <span className="item-name">
+                    {item.name || item.category || 'Unknown item'}
+                  </span>
+                  {item.name && item.category && (
+                    <span className="item-category-badge">{item.category}</span>
+                  )}
                   <span className="item-details">
                     {item.brand && <span className="item-brand">{item.brand}</span>}
                     {(item.variants || []).length > 0 && (
@@ -531,7 +558,7 @@ function ComparisonPage() {
             <button className="link-button" onClick={deselectAllStores}>Deselect All</button>
           </div>
         </div>
-        
+
         {stores.length > 0 ? (
           <div className="chip-group">
             {stores.map((store) => (
@@ -539,7 +566,7 @@ function ComparisonPage() {
                 key={store.id}
                 className={`chip ${selectedStores.includes(store.name) ? 'active' : ''}`}
                 onClick={() => toggleStore(store.name)}
-                style={selectedStores.includes(store.name) ? { 
+                style={selectedStores.includes(store.name) ? {
                   backgroundColor: getStoreColor(store.name),
                   borderColor: getStoreColor(store.name)
                 } : {}}
@@ -553,7 +580,7 @@ function ComparisonPage() {
             Loading stores...
           </p>
         )}
-        
+
         {selectedStores.length > 0 && (
           <p className="muted" style={{ marginTop: '0.75rem', fontSize: '0.85rem' }}>
             {selectedStores.length} store{selectedStores.length !== 1 ? 's' : ''} selected

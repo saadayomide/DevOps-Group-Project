@@ -14,10 +14,11 @@ Components:
 
 Available Scrapers:
 - MercadonaScraper: Full Playwright-based live implementation
-- CarrefourScraper: HTTP API with fallback
-- AlcampoScraper: HTTP API with fallback
-- LidlScraper: HTTP API with fallback
-- DiaScraper: HTTP API with fallback
+- CarrefourScraper: Playwright API with fallback
+- AlcampoScraper: Playwright API with fallback
+- LidlScraper: Playwright API with fallback
+- DiaScraper: Playwright API with fallback
+- GadisScraper: Playwright API with fallback (Galicia region)
 
 Usage:
     from app.services.scrapers import ScraperManager, get_all_offers
@@ -49,6 +50,7 @@ from .carrefour import CarrefourScraper, scrape_carrefour
 from .alcampo import AlcampoScraper, scrape_alcampo
 from .lidl import LidlScraper, scrape_lidl
 from .dia import DiaScraper, scrape_dia
+from .gadis import GadisScraper, scrape_gadis
 
 # Manager (Facade)
 from .manager import (
@@ -70,11 +72,13 @@ __all__ = [
     "AlcampoScraper",
     "LidlScraper",
     "DiaScraper",
+    "GadisScraper",
     "scrape_mercadona",
     "scrape_carrefour",
     "scrape_alcampo",
     "scrape_lidl",
     "scrape_dia",
+    "scrape_gadis",
     # Manager
     "ScraperManager",
     "get_scraper_manager",

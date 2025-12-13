@@ -133,11 +133,11 @@ describe('ComparisonPage', () => {
         expect(screen.getByText('Mercadona')).toBeInTheDocument()
       })
 
-      // Try to add without selecting category
+      // Try to add without selecting category or entering product name
       const addButton = screen.getByRole('button', { name: /add to list/i })
       await user.click(addButton)
 
-      expect(screen.getByText(/please select a category/i)).toBeInTheDocument()
+      expect(screen.getByText(/please enter a product name or select a category/i)).toBeInTheDocument()
     })
 
     it('shows variant checkboxes when category is selected', async () => {
@@ -293,9 +293,9 @@ describe('ComparisonPage', () => {
       const compareButton = screen.getByRole('button', { name: /compare prices/i })
       await user.click(compareButton)
 
-      // Should show results
+      // Should show results heading
       await waitFor(() => {
-        expect(screen.getByText(/results/i)).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: /results/i })).toBeInTheDocument()
       })
     })
 
