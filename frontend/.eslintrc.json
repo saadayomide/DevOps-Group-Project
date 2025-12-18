@@ -5,8 +5,16 @@
     "node": true
   },
   "extends": [
-    "eslint:recommended"
+    "eslint:recommended",
+    "plugin:react/recommended",
+    "plugin:react/jsx-runtime"
   ],
+  "plugins": ["react"],
+  "settings": {
+    "react": {
+      "version": "detect"
+    }
+  },
   "parserOptions": {
     "ecmaVersion": "latest",
     "sourceType": "module",
@@ -17,7 +25,8 @@
   "rules": {
     "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
     "no-console": "warn",
-    "no-debugger": "error"
+    "no-debugger": "error",
+    "react/prop-types": "off"
   },
   "ignorePatterns": ["dist/", "node_modules/", "*.config.js"]
 }

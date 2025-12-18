@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react'
+import { createContext, useContext, useState, useEffect, useMemo } from 'react'
 
 const STORAGE_KEY = 'shopsmart:shopping'
 const ShoppingContext = createContext()

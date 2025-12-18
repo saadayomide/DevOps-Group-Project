@@ -1,4 +1,5 @@
 """Application Insights telemetry helpers for custom metrics and logs."""
+
 import logging
 import os
 from typing import Optional
@@ -34,18 +35,32 @@ except Exception:  # pragma: no cover - optional dependency guard
 logger = logging.getLogger(__name__)
 
 
-REQUEST_LATENCY_MS = measure_module.MeasureFloat(  # type: ignore[arg-type]
-    "request_latency_ms", "Request latency in milliseconds"
-) if OPENCENSUS_AVAILABLE else None
-REQUEST_COUNT = measure_module.MeasureInt(  # type: ignore[arg-type]
-    "request_count", "Total number of requests"
-) if OPENCENSUS_AVAILABLE else None
-ERROR_COUNT = measure_module.MeasureInt(  # type: ignore[arg-type]
-    "request_error_count", "Number of failed requests"
-) if OPENCENSUS_AVAILABLE else None
-REFRESH_COUNT = measure_module.MeasureInt(  # type: ignore[arg-type]
-    "refresh_count", "Number of refresh operations triggered"
-) if OPENCENSUS_AVAILABLE else None
+REQUEST_LATENCY_MS = (
+    measure_module.MeasureFloat(  # type: ignore[arg-type]
+        "request_latency_ms", "Request latency in milliseconds"
+    )
+    if OPENCENSUS_AVAILABLE
+    else None
+)
+REQUEST_COUNT = (
+    measure_module.MeasureInt("request_count", "Total number of requests")  # type: ignore[arg-type]
+    if OPENCENSUS_AVAILABLE
+    else None
+)
+ERROR_COUNT = (
+    measure_module.MeasureInt(  # type: ignore[arg-type]
+        "request_error_count", "Number of failed requests"
+    )
+    if OPENCENSUS_AVAILABLE
+    else None
+)
+REFRESH_COUNT = (
+    measure_module.MeasureInt(  # type: ignore[arg-type]
+        "refresh_count", "Number of refresh operations triggered"
+    )
+    if OPENCENSUS_AVAILABLE
+    else None
+)
 
 METHOD_KEY = tag_key.TagKey("method") if OPENCENSUS_AVAILABLE else None
 ENDPOINT_KEY = tag_key.TagKey("endpoint") if OPENCENSUS_AVAILABLE else None
@@ -138,7 +153,9 @@ class TelemetryClient:
             # View already registered; ignore
             pass
 
-    def record_request(self, *, duration_ms: float, status_code: int, endpoint: str, method: str) -> None:
+    def record_request(
+        self, *, duration_ms: float, status_code: int, endpoint: str, method: str
+    ) -> None:
         if not self.enabled:
             return
 
@@ -147,13 +164,14 @@ class TelemetryClient:
         tag_map_instance.insert(ENDPOINT_KEY, endpoint)  # type: ignore[arg-type]
         tag_map_instance.insert(STATUS_KEY, str(status_code))  # type: ignore[arg-type]
 
-        measurement_map = stats_module.stats_recorder.new_measurement_map()  # type: ignore[union-attr]
+        recorder = stats_module.stats_recorder  # type: ignore[union-attr]
+        measurement_map = recorder.new_measurement_map()
         if REQUEST_COUNT:
-            measurement_map.measure_int_put(REQUEST_COUNT, 1)  # type: ignore[arg-type]
+            measurement_map.measure_int_put(REQUEST_COUNT, 1)
         if REQUEST_LATENCY_MS:
-            measurement_map.measure_float_put(REQUEST_LATENCY_MS, duration_ms)  # type: ignore[arg-type]
+            measurement_map.measure_float_put(REQUEST_LATENCY_MS, duration_ms)
         if ERROR_COUNT and status_code >= 400:
-            measurement_map.measure_int_put(ERROR_COUNT, 1)  # type: ignore[arg-type]
+            measurement_map.measure_int_put(ERROR_COUNT, 1)
         measurement_map.record(tag_map_instance)
 
     def record_refresh(self, *, success: bool) -> None:
@@ -161,10 +179,12 @@ class TelemetryClient:
             return
 
         tag_map_instance = tag_map.TagMap()  # type: ignore[operator]
-        tag_map_instance.insert(REFRESH_STATUS_KEY, "success" if success else "failed")  # type: ignore[arg-type]
+        status = "success" if success else "failed"
+        tag_map_instance.insert(REFRESH_STATUS_KEY, status)  # type: ignore[arg-type]
 
-        measurement_map = stats_module.stats_recorder.new_measurement_map()  # type: ignore[union-attr]
-        measurement_map.measure_int_put(REFRESH_COUNT, 1)  # type: ignore[arg-type]
+        recorder = stats_module.stats_recorder  # type: ignore[union-attr]
+        measurement_map = recorder.new_measurement_map()
+        measurement_map.measure_int_put(REFRESH_COUNT, 1)
         measurement_map.record(tag_map_instance)
 
 

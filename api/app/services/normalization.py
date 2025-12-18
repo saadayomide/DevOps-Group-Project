@@ -9,7 +9,6 @@ Phase 1 enhancements:
 
 import re
 import unicodedata
-import json
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from pathlib import Path
@@ -99,7 +98,7 @@ def remove_accents(s: str) -> str:
 
 
 def normalize_string(s: str) -> str:
-    """Deterministic normalization: lowercase, remove accents, remove punctuation except digits and spaces, collapse whitespace."""
+    """Deterministic normalization: lowercase, remove accents, collapse whitespace."""
     if not s:
         return ""
     s = s.strip().lower()
@@ -174,10 +173,8 @@ class ProductSpec:
 
 
 def _match_category_by_rules(tokens: List[str]) -> Dict[str, Dict[str, List[str]]]:
-    """Return categories that match base_terms and any matched optional/forbidden tokens.
-
-    Returns a mapping of category -> { matched_base: [...], matched_optional: [...], matched_forbidden: [...] }
-    """
+    """Return categories that match base_terms and any matched optional/forbidden tokens."""
+    # Returns: category -> {matched_base, matched_optional, matched_forbidden}
     matches = {}
     token_set = set(tokens)
     for cat, data in CATEGORY_RULES.items():
@@ -194,7 +191,12 @@ def _match_category_by_rules(tokens: List[str]) -> Dict[str, Dict[str, List[str]
     return matches
 
 
-def build_product_spec(name: str, brand: Optional[str] = None, category: Optional[str] = None, variants: Optional[List[str]] = None) -> ProductSpec:
+def build_product_spec(
+    name: str,
+    brand: Optional[str] = None,
+    category: Optional[str] = None,
+    variants: Optional[List[str]] = None,
+) -> ProductSpec:
     """Construct a ProductSpec from input attributes and rule hints."""
     name_norm = normalize_string(name or "")
     tokens = name_norm.split() if name_norm else []

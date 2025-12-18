@@ -8,15 +8,30 @@ import time
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.db import Base, SessionLocal
+from app.db import Base
 from app.models import ShoppingList, ShoppingListItem
 from app.main import app
+
 
 # Fake offers (synchronous) returned by ScraperManager.get_offers
 def fake_get_offers(self, query):
     return [
-        {"name": "Leche desnatada 1L", "price": 1.2, "category": "milk", "subcategory": "desnatada", "store": "Mercadona", "url": "http://m/1"},
-        {"name": "Leche entera 1L", "price": 1.0, "category": "milk", "subcategory": "entera", "store": "Mercadona", "url": "http://m/2"},
+        {
+            "name": "Leche desnatada 1L",
+            "price": 1.2,
+            "category": "milk",
+            "subcategory": "desnatada",
+            "store": "Mercadona",
+            "url": "http://m/1",
+        },
+        {
+            "name": "Leche entera 1L",
+            "price": 1.0,
+            "category": "milk",
+            "subcategory": "entera",
+            "store": "Mercadona",
+            "url": "http://m/2",
+        },
     ]
 
 
@@ -38,7 +53,9 @@ def test_refresh_endpoint_background(monkeypatch, tmp_path):
     db.refresh(sl)
     # capture the id before closing the session to avoid DetachedInstance access
     sl_id = sl.id
-    item = ShoppingListItem(shopping_list_id=sl_id, name="Leche 1L", brand=None, category="milk", variants="desnatada")
+    item = ShoppingListItem(
+        shopping_list_id=sl_id, name="Leche 1L", brand=None, category="milk", variants="desnatada"
+    )
     db.add(item)
     db.commit()
     db.close()
@@ -57,7 +74,7 @@ def test_refresh_endpoint_background(monkeypatch, tmp_path):
     updated = False
     while time.time() - start < 5:
         db = TestSession()
-        refreshed = db.query(ShoppingList).get(sl_id)
+        refreshed = db.get(ShoppingList, sl_id)
         if refreshed and refreshed.last_refreshed:
             updated = True
             db.close()

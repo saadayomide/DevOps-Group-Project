@@ -13,6 +13,7 @@ function ComparisonPage() {
 
   // Form state for new item
   const [newItem, setNewItem] = useState({
+    productName: '',
     category: '',
     brand: '',
     variants: [],
@@ -77,6 +78,7 @@ function ComparisonPage() {
         // Ensure each item has required fields with defaults
         const validatedItems = parsed.map(item => ({
           id: item.id || Date.now(),
+          productName: item.productName || '',
           category: item.category || '',
           brand: item.brand || null,
           variants: Array.isArray(item.variants) ? item.variants : [],
@@ -170,8 +172,9 @@ function ComparisonPage() {
   };
 
   const validateItem = () => {
-    if (!newItem.category) {
-      setError('Please select a category');
+    // Either product name or category is required
+    if (!newItem.productName?.trim() && !newItem.category) {
+      setError('Please enter a product name or select a category');
       return false;
     }
     if (newItem.quantity < 1) {
@@ -181,6 +184,17 @@ function ComparisonPage() {
     return true;
   };
 
+  // Build search query from item fields
+  const buildSearchQuery = (item) => {
+    const parts = [];
+    if (item.productName?.trim()) parts.push(item.productName.trim());
+    if (item.brand?.trim()) parts.push(item.brand.trim());
+    if (item.variants?.length > 0) parts.push(...item.variants);
+    // If only category selected, use it as fallback
+    if (parts.length === 0 && item.category) parts.push(item.category);
+    return parts.join(' ');
+  };
+
   const handleAddItem = (e) => {
     e.preventDefault();
 
@@ -188,6 +202,7 @@ function ComparisonPage() {
 
     const itemToAdd = {
       id: Date.now(),
+      productName: newItem.productName?.trim() || '',
       category: newItem.category,
       brand: newItem.brand?.trim() || null,
       variants: newItem.variants || [],
@@ -201,6 +216,7 @@ function ComparisonPage() {
 
     // Reset form
     setNewItem({
+      productName: '',
       category: '',
       brand: '',
       variants: [],
@@ -236,9 +252,9 @@ function ComparisonPage() {
       setLoading(true);
       setError(null);
 
-      // Backend expects items as a list of strings (product names)
-      // For now we use the selected category name as the search term
-      const itemsForBackend = items.map(item => item.category).filter(Boolean);
+      // Backend expects items as a list of strings (product names/search queries)
+      // Build search queries from product name, brand, and variants
+      const itemsForBackend = items.map(buildSearchQuery).filter(Boolean);
 
       const data = await compareBasket(itemsForBackend, selectedStores);
       const comparisons = transformCompareResponse(data);
@@ -377,6 +393,19 @@ function ComparisonPage() {
         <h2>Add Item to Compare</h2>
 
         <form onSubmit={handleAddItem} className="item-form">
+          {/* Product Name Input */}
+          <div className="field">
+            <label htmlFor="productName">Product Name</label>
+            <input
+              type="text"
+              id="productName"
+              value={newItem.productName}
+              onChange={(e) => handleInputChange('productName', e.target.value)}
+              placeholder="e.g., Leche entera, Huevos frescos, Pan de molde"
+            />
+            <small className="muted">Enter a specific product name for best results, or use category below</small>
+          </div>
+
           {/* Category Dropdown */}
           <div className="field">
             <label htmlFor="category">Category *</label>
@@ -518,8 +547,13 @@ function ComparisonPage() {
             {items.map((item) => (
               <div key={item.id} className="shopping-list-item">
                 <div className="item-info">
-                  <span className="item-category">{item.category}</span>
+                  <span className="item-category">
+                    {item.productName || item.category || 'Item'}
+                  </span>
                   <span className="item-details">
+                    {item.category && item.productName && (
+                      <span className="item-brand">{item.category}</span>
+                    )}
                     {item.brand && <span className="item-brand">{item.brand}</span>}
                     {(item.variants || []).length > 0 && (
                       <span className="item-variants">({(item.variants || []).join(', ')})</span>

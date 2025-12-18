@@ -1,16 +1,16 @@
-"""Service to refresh a shopping list: query scrapers, match offers, and update DB."""
+"""Service to refresh a shopping list: query scrapers, match offers, update DB."""
+
 import asyncio
-import json
-import datetime
+from datetime import datetime, timezone
 import logging
+import os
 from typing import List
 from sqlalchemy.orm import Session
 from app.services.normalization import build_product_spec, summarize_spec
 from app.services.scorer import filter_and_pick_best
 from app.services.scraper_service import ScraperService
-from app.models import ShoppingList, ShoppingListItem
+from app.models import ShoppingList
 from app.services import metrics
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ async def async_refresh_shopping_list(list_id: int, db: Session) -> dict:
 
     This can be awaited from async endpoints or scheduled as a background task.
     """
-    sl: ShoppingList = db.query(ShoppingList).get(list_id)
+    sl: ShoppingList = db.get(ShoppingList, list_id)
     if not sl:
         raise ValueError(f"ShoppingList {list_id} not found")
 
@@ -37,7 +37,10 @@ async def async_refresh_shopping_list(list_id: int, db: Session) -> dict:
 
     for item in sl.items:
         try:
-            spec = build_product_spec(item.name, brand=item.brand, category=item.category, variants=(item.variants or "").split(",") if item.variants else None)
+            variants = (item.variants or "").split(",") if item.variants else None
+            spec = build_product_spec(
+                item.name, brand=item.brand, category=item.category, variants=variants
+            )
             query = _make_query_from_spec(spec)
 
             # Call scrapers with retry/backoff; if scraper fails after retries, continue
@@ -48,21 +51,30 @@ async def async_refresh_shopping_list(list_id: int, db: Session) -> dict:
             while attempt <= max_retries:
                 try:
                     scraper = ScraperService(db)
-                    # ScraperManager.get_offers is synchronous; run it in executor to avoid blocking
+                    # ScraperManager.get_offers is sync; run in executor
                     loop = asyncio.get_running_loop()
-                    offers = await loop.run_in_executor(None, scraper.manager.get_offers, query) or []
+                    func = scraper.manager.get_offers
+                    offers = await loop.run_in_executor(None, func, query) or []
                     break
                 except Exception as e:
                     attempt += 1
-                    logger.warning("Scraper error (attempt %s/%s) for query=%s: %s", attempt, max_retries, query, e)
+                    logger.warning(
+                        "Scraper error (attempt %s/%s) for query=%s: %s",
+                        attempt,
+                        max_retries,
+                        query,
+                        e,
+                    )
                     if attempt > max_retries:
-                        logger.exception("Scraper failed after %s attempts for query=%s", max_retries, query)
+                        logger.exception(
+                            "Scraper failed after %s attempts for query=%s", max_retries, query
+                        )
                         metrics.REFRESH_ERRORS_TOTAL.inc()
                         offers = []
                         break
                     await asyncio.sleep(backoff * attempt)
 
-            # Convert offers to expected structure (ensure keys name, price, category, description, store, url)
+            # Convert offers to expected structure (name, price, category, etc.)
             normalized_offers = []
             for o in offers:
                 # Support Offer objects from ScraperManager or plain dicts
@@ -72,11 +84,17 @@ async def async_refresh_shopping_list(list_id: int, db: Session) -> dict:
                     od = o
                 else:
                     # Fallback: build dict from attributes
+                    cat = getattr(o, "category", None) or getattr(o, "category_name", None)
+                    desc = (
+                        getattr(o, "subcategory", None)
+                        or getattr(o, "description", None)
+                        or getattr(o, "subcategory_name", "")
+                    )
                     od = {
                         "name": getattr(o, "name", None),
                         "price": getattr(o, "price", None),
-                        "category": getattr(o, "category", None) or getattr(o, "category_name", None),
-                        "description": getattr(o, "subcategory", None) or getattr(o, "description", None) or getattr(o, "subcategory_name", ""),
+                        "category": cat,
+                        "description": desc,
                         "store": getattr(o, "store", ""),
                         "url": getattr(o, "url", None) or getattr(o, "link", None),
                     }
@@ -100,18 +118,28 @@ async def async_refresh_shopping_list(list_id: int, db: Session) -> dict:
                 "query": query,
                 "offers_count": len(normalized_offers),
                 "ranked": [
-                    {"name": r.get("name"), "store": r.get("store"), "price": r.get("_price"), "url": r.get("url")} for r in ranked
+                    {
+                        "name": r.get("name"),
+                        "store": r.get("store"),
+                        "price": r.get("_price"),
+                        "url": r.get("url"),
+                    }
+                    for r in ranked
                 ],
                 "selected": None,
                 "spec": summarize_spec(spec),
             }
 
-
             if best:
                 item.best_store = best.get("store")
                 item.best_price = best.get("_price")
                 item.best_url = best.get("url")
-                comparison["selected"] = {"name": best.get("name"), "store": best.get("store"), "price": best.get("_price"), "url": best.get("url")}
+                comparison["selected"] = {
+                    "name": best.get("name"),
+                    "store": best.get("store"),
+                    "price": best.get("_price"),
+                    "url": best.get("url"),
+                }
                 metrics.BEST_SELECTED_TOTAL.inc()
             else:
                 item.best_store = None
@@ -129,7 +157,7 @@ async def async_refresh_shopping_list(list_id: int, db: Session) -> dict:
             logger.exception("Error refreshing item %s: %s", item.id, e)
             summary["errors"].append({"item_id": item.id, "error": str(e)})
 
-    sl.last_refreshed = datetime.datetime.utcnow()
+    sl.last_refreshed = datetime.now(timezone.utc)
     db.add(sl)
     db.commit()
     summary["last_refreshed"] = sl.last_refreshed.isoformat()

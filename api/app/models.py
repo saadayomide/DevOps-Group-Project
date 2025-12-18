@@ -7,7 +7,6 @@ from sqlalchemy import Column, Integer, String, ForeignKey, Index, Numeric
 from sqlalchemy.orm import relationship
 from app.db import Base
 from sqlalchemy import DateTime, JSON
-import datetime
 
 
 class Product(Base):

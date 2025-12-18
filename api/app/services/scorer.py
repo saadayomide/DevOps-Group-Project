@@ -2,8 +2,8 @@
 
 Implements hard filters, scoring heuristics and a filter->score->rank pipeline.
 """
+
 from typing import Dict, List, Optional, Tuple
-from decimal import Decimal
 from app.services.normalization import ProductSpec, normalize_string, CATEGORY_RULES
 
 
@@ -30,7 +30,12 @@ def _safe_price(offer: Dict) -> Optional[float]:
 
 def hard_filters_fail(spec: ProductSpec, offer: Dict) -> bool:
     """Return True if this offer should be rejected outright by hard filters."""
-    text = normalize_string(" ".join([str(offer.get("name") or ""), str(offer.get("category") or ""), str(offer.get("description") or "")] ))
+    parts = [
+        str(offer.get("name") or ""),
+        str(offer.get("category") or ""),
+        str(offer.get("description") or ""),
+    ]
+    text = normalize_string(" ".join(parts))
 
     # Forbidden terms for any matched category should reject the offer.
     # Use the canonical CATEGORY_RULES so we consider category-level forbidden terms
@@ -56,12 +61,17 @@ def hard_filters_fail(spec: ProductSpec, offer: Dict) -> bool:
 
 
 def score_offer(spec: ProductSpec, offer: Dict, price_rank_score: float = 0.0) -> Optional[float]:
-    """Compute a numeric score for an offer. Return None when rejected by hard filters."""
+    """Compute a numeric score for an offer. Return None if rejected."""
     if hard_filters_fail(spec, offer):
         return None
 
     score = 0.0
-    text = normalize_string(" ".join([str(offer.get("name") or ""), str(offer.get("category") or ""), str(offer.get("description") or "")] ))
+    parts = [
+        str(offer.get("name") or ""),
+        str(offer.get("category") or ""),
+        str(offer.get("description") or ""),
+    ]
+    text = normalize_string(" ".join(parts))
     tokens = set(spec.tokens or [])
 
     # Category alignment
@@ -106,11 +116,10 @@ def score_offer(spec: ProductSpec, offer: Dict, price_rank_score: float = 0.0) -
     return score
 
 
-def filter_and_pick_best(spec: ProductSpec, offers: List[Dict], top_k: int = 5) -> Tuple[Optional[Dict], List[Dict]]:
-    """Filter offers with hard filters, score them, rank and return best and top-k list.
-
-    Returns (best_offer_or_None, ranked_offers_list)
-    """
+def filter_and_pick_best(
+    spec: ProductSpec, offers: List[Dict], top_k: int = 5
+) -> Tuple[Optional[Dict], List[Dict]]:
+    """Filter offers, score them, rank and return best and top-k list."""
     if not offers:
         return None, []
 
@@ -128,8 +137,15 @@ def filter_and_pick_best(spec: ProductSpec, offers: List[Dict], top_k: int = 5) 
         return None, []
 
     # Compute price rank score: cheaper offers get higher small bonus
-    offers_with_price = sorted(filtered, key=lambda x: (x.get("_price") is None, x.get("_price") if x.get("_price") is not None else float("inf")))
-    price_rank_map = {o["_orig_index"]: (len(offers_with_price) - i) / len(offers_with_price) for i, o in enumerate(offers_with_price)}
+    def price_sort_key(x):
+        p = x.get("_price")
+        return (p is None, p if p is not None else float("inf"))
+
+    offers_with_price = sorted(filtered, key=price_sort_key)
+    price_rank_map = {
+        o["_orig_index"]: (len(offers_with_price) - i) / len(offers_with_price)
+        for i, o in enumerate(offers_with_price)
+    }
 
     scored = []
     for o in filtered:
@@ -142,7 +158,11 @@ def filter_and_pick_best(spec: ProductSpec, offers: List[Dict], top_k: int = 5) 
         return None, []
 
     # Sort by score desc, then price asc (None prices last)
-    scored.sort(key=lambda t: (-t[0], (t[1].get("_price") if t[1].get("_price") is not None else float("inf"))))
+    def sort_key(t):
+        p = t[1].get("_price")
+        return (-t[0], p if p is not None else float("inf"))
+
+    scored.sort(key=sort_key)
     ranked = [o for _, o in scored]
 
     best = ranked[0] if ranked else None
