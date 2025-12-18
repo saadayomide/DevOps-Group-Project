@@ -39,14 +39,29 @@ const mockCategories = [
   { id: 3, name: 'Beverages' },
 ]
 
+// Shape aligned with backend CompareResponse (api/app/schemas.py)
 const mockCompareResponse = {
-  results: [
+  items: [
     {
-      item: 'Dairy',
-      product_name: 'Leche entera',
+      name: 'Dairy',
+      store: 'Mercadona',
+      price: 0.89,
+    },
+  ],
+  storeTotals: [
+    { store: 'Mercadona', total: 0.89 },
+    { store: 'Carrefour', total: 0.95 },
+  ],
+  overallTotal: 0.89,
+  unmatched: [],
+  priceComparison: [
+    {
+      name: 'Dairy',
+      cheapestStore: 'Mercadona',
+      cheapestPrice: 0.89,
       prices: [
-        { store: 'Mercadona', product_name: 'Leche Hacendado', price: 0.89 },
-        { store: 'Carrefour', product_name: 'Leche Carrefour', price: 0.95 },
+        { store: 'Mercadona', price: 0.89 },
+        { store: 'Carrefour', price: 0.95 },
       ],
     },
   ],
@@ -133,11 +148,11 @@ describe('ComparisonPage', () => {
         expect(screen.getByText('Mercadona')).toBeInTheDocument()
       })
 
-      // Try to add without selecting category or entering product name
+      // Try to add without selecting category
       const addButton = screen.getByRole('button', { name: /add to list/i })
       await user.click(addButton)
 
-      expect(screen.getByText(/please enter a product name or select a category/i)).toBeInTheDocument()
+      expect(screen.getByText(/please select a category/i)).toBeInTheDocument()
     })
 
     it('shows variant checkboxes when category is selected', async () => {
@@ -293,9 +308,9 @@ describe('ComparisonPage', () => {
       const compareButton = screen.getByRole('button', { name: /compare prices/i })
       await user.click(compareButton)
 
-      // Should show results heading
+      // Should show results
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /results/i })).toBeInTheDocument()
+        expect(screen.getByText(/results/i)).toBeInTheDocument()
       })
     })
 

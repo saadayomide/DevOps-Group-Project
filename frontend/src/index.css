@@ -1252,35 +1252,9 @@ textarea {
   min-width: 0;
 }
 
-.item-name {
-  font-weight: 600;
-  color: var(--text-primary);
-  font-size: 1rem;
-}
-
 .item-category {
   font-weight: 600;
   color: var(--text-primary);
-}
-
-.item-category-badge {
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--accent);
-  background: rgba(88, 166, 255, 0.15);
-  padding: 0.15rem 0.5rem;
-  border-radius: 3px;
-  margin-left: 0.5rem;
-  vertical-align: middle;
-}
-
-.field-hint {
-  display: block;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin-top: 0.35rem;
-  font-style: italic;
 }
 
 .item-details {

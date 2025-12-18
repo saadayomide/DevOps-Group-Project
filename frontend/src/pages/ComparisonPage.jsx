@@ -13,7 +13,6 @@ function ComparisonPage() {
 
   // Form state for new item
   const [newItem, setNewItem] = useState({
-    name: '',
     category: '',
     brand: '',
     variants: [],
@@ -64,7 +63,7 @@ function ComparisonPage() {
     { id: 3, name: 'Lidl' },
     { id: 4, name: 'Alcampo' },
     { id: 5, name: 'Dia' },
-    { id: 6, name: 'Gadis' },
+    { id: 6, name: 'El Corte Inglés' },
   ];
 
   useEffect(() => {
@@ -78,7 +77,6 @@ function ComparisonPage() {
         // Ensure each item has required fields with defaults
         const validatedItems = parsed.map(item => ({
           id: item.id || Date.now(),
-          name: item.name || null,
           category: item.category || '',
           brand: item.brand || null,
           variants: Array.isArray(item.variants) ? item.variants : [],
@@ -172,8 +170,8 @@ function ComparisonPage() {
   };
 
   const validateItem = () => {
-    if (!newItem.name && !newItem.category) {
-      setError('Please enter a product name or select a category');
+    if (!newItem.category) {
+      setError('Please select a category');
       return false;
     }
     if (newItem.quantity < 1) {
@@ -190,8 +188,7 @@ function ComparisonPage() {
 
     const itemToAdd = {
       id: Date.now(),
-      name: newItem.name?.trim() || null,
-      category: newItem.category || null,
+      category: newItem.category,
       brand: newItem.brand?.trim() || null,
       variants: newItem.variants || [],
       quantity: newItem.quantity,
@@ -204,7 +201,6 @@ function ComparisonPage() {
 
     // Reset form
     setNewItem({
-      name: '',
       category: '',
       brand: '',
       variants: [],
@@ -240,14 +236,9 @@ function ComparisonPage() {
       setLoading(true);
       setError(null);
 
-      const itemsForBackend = items.map(item => ({
-        name: item.name,
-        category: item.category,
-        brand: item.brand,
-        variants: item.variants || [],
-        quantity: item.quantity,
-        unit: item.unit
-      }));
+      // Backend expects items as a list of strings (product names)
+      // For now we use the selected category name as the search term
+      const itemsForBackend = items.map(item => item.category).filter(Boolean);
 
       const data = await compareBasket(itemsForBackend, selectedStores);
       const comparisons = transformCompareResponse(data);
@@ -267,27 +258,56 @@ function ComparisonPage() {
   };
 
   const transformCompareResponse = (data) => {
-    if (!data || !data.results) return [];
+    /**
+     * Backend CompareResponse shape (api/app/schemas.py):
+     * {
+     *   items: [{ name, store, price }],
+     *   storeTotals: [{ store, total }],
+     *   overallTotal: number,
+     *   unmatched: [string],
+     *   priceComparison: [
+     *     { name, prices: [{ store, price }], cheapestStore, cheapestPrice }
+     *   ]
+     * }
+     *
+     * The UI expects an array of objects shaped like:
+     * {
+     *   category_name: string,
+     *   best_store: string,
+     *   best_price: number,
+     *   best_offer: { store, product_name, price } | null,
+     *   comparison_json: [{ store, product_name, price }]
+     * }
+     */
+    if (!data || !Array.isArray(data.priceComparison)) {
+      return [];
+    }
 
-    return data.results.map(result => {
-      const offers = result.prices || [];
-      const sortedOffers = [...offers].sort((a, b) => (a.price || Infinity) - (b.price || Infinity));
-      const bestOffer = sortedOffers[0];
+    return data.priceComparison.map((item) => {
+      const offers = item.prices || [];
+      const sortedOffers = [...offers].sort(
+        (a, b) => (a.price ?? Infinity) - (b.price ?? Infinity)
+      );
+      const bestOffer =
+        sortedOffers.find((o) => o.store === item.cheapestStore) ||
+        sortedOffers[0];
 
       return {
-        category_name: result.item || result.product_name || 'Unknown',
-        best_store: bestOffer?.store || 'N/A',
-        best_price: bestOffer?.price || null,
-        best_offer: bestOffer ? {
-          store: bestOffer.store,
-          product_name: bestOffer.product_name || result.item,
-          price: bestOffer.price
-        } : null,
-        comparison_json: sortedOffers.map(offer => ({
-          store: offer.store || offer.supermarket,
-          product_name: offer.product_name || result.item,
-          price: offer.price
-        }))
+        category_name: item.name || 'Unknown',
+        best_store: item.cheapestStore || bestOffer?.store || 'N/A',
+        best_price: item.cheapestPrice ?? bestOffer?.price ?? null,
+        best_offer: bestOffer
+          ? {
+              store: bestOffer.store,
+              product_name: item.name,
+              price: bestOffer.price,
+            }
+          : null,
+        comparison_json: sortedOffers.map((offer) => ({
+          store: offer.store,
+          product_name: item.name,
+          price: offer.price,
+        })),
       };
     });
   };
@@ -327,7 +347,6 @@ function ComparisonPage() {
       lidl: '#0050aa',
       alcampo: '#e30613',
       dia: '#e30613',
-      gadis: '#e74c3c',
       'el corte inglés': '#00a651',
       eroski: '#ff6600',
       aldi: '#00005f',
@@ -358,25 +377,9 @@ function ComparisonPage() {
         <h2>Add Item to Compare</h2>
 
         <form onSubmit={handleAddItem} className="item-form">
-          {/* Product Name Input */}
-          <div className="field">
-            <label htmlFor="productName">Product Name</label>
-            <input
-              type="text"
-              id="productName"
-              value={newItem.name}
-              onChange={(e) => handleInputChange('name', e.target.value)}
-              placeholder="e.g., Leche entera, Huevos frescos, Pan de molde"
-              autoComplete="off"
-            />
-            <small className="field-hint">
-              Enter a specific product name for best results, or use category below
-            </small>
-          </div>
-
           {/* Category Dropdown */}
           <div className="field">
-            <label htmlFor="category">Category{!newItem.name ? ' *' : ' (optional)'}</label>
+            <label htmlFor="category">Category *</label>
             <select
               id="category"
               value={newItem.category}
@@ -515,12 +518,7 @@ function ComparisonPage() {
             {items.map((item) => (
               <div key={item.id} className="shopping-list-item">
                 <div className="item-info">
-                  <span className="item-name">
-                    {item.name || item.category || 'Unknown item'}
-                  </span>
-                  {item.name && item.category && (
-                    <span className="item-category-badge">{item.category}</span>
-                  )}
+                  <span className="item-category">{item.category}</span>
                   <span className="item-details">
                     {item.brand && <span className="item-brand">{item.brand}</span>}
                     {(item.variants || []).length > 0 && (

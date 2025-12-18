@@ -24,7 +24,6 @@ from app.services.scrapers import (
     scrape_mercadona,
     scrape_carrefour,
     scrape_alcampo,
-    scrape_gadis,
     ScraperManager,
     get_all_offers,
 )
@@ -252,48 +251,6 @@ class TestMercadonaScraper:
         assert scraper.STORE_NAME == "Mercadona"
 
 
-class TestGadisScraper:
-    """Tests for Gadis scraper (Galicia regional supermarket)"""
-
-    def test_search_returns_offers(self):
-        """Should return offers for common products"""
-        offers = scrape_gadis("leche")
-
-        assert isinstance(offers, list)
-        assert len(offers) > 0
-        assert all(isinstance(o, Offer) for o in offers)
-
-    def test_offer_structure(self):
-        """Offers should have correct structure"""
-        offers = scrape_gadis("huevos")
-
-        if offers:
-            offer = offers[0]
-            assert offer.store == "Gadis"
-            assert offer.price >= 0
-            assert offer.name
-
-    def test_galician_products(self):
-        """Should have Galician regional products"""
-        offers = scrape_gadis("queso")
-
-        # Check for Galician cheeses
-        names = [o.name.lower() for o in offers]
-        assert any("tetilla" in n or "arzua" in n for n in names) or len(offers) == 0
-
-    def test_store_name_correct(self):
-        """Store name should be Gadis"""
-        offers = scrape_gadis("agua")
-
-        for offer in offers:
-            assert offer.store == "Gadis"
-
-    def test_graceful_degradation(self):
-        """Unknown query should return empty, not crash"""
-        offers = scrape_gadis("producto_inexistente_xyz")
-        assert isinstance(offers, list)
-
-
 # ---- ScraperManager Tests ----------------------------------------------------
 
 
@@ -374,14 +331,14 @@ class TestScraperIntegration:
         # Verify structure
         for offer in offers:
             assert isinstance(offer, Offer)
-            assert offer.store in ["Mercadona", "Carrefour", "Alcampo", "Lidl", "Dia", "Gadis"]
+            assert offer.store in ["Mercadona", "Carrefour", "Alcampo", "Lidl", "Dia"]
             assert offer.price >= 0
 
     def test_no_duplicate_offers(self):
         """Offers should be unique within a store (for mock data stores)"""
         # Only test mock/fallback data stores
         # Mercadona can have legitimate duplicates (same name, different sizes)
-        manager = ScraperManager(stores=["carrefour", "alcampo", "lidl", "dia", "gadis"])
+        manager = ScraperManager(stores=["carrefour", "alcampo", "lidl", "dia"])
         offers = manager.get_offers("tomate")
 
         # Group by store
